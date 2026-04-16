@@ -19,7 +19,7 @@ export function convertSvgsonToDefinition(node: INode): DefinitionElement {
         if (colorMatch) {
           result.attributes[key] = {
             type: 'color',
-            value: colorMatch[1],
+            name: colorMatch[1],
           };
         }
       }
@@ -33,11 +33,10 @@ export function convertSvgsonToDefinition(node: INode): DefinitionElement {
       );
   
       if (componentMatch) {
-        delete result.name;
         delete result.attributes.href;
-    
+
         result.type = 'component';
-        result.value = componentMatch[1];
+        result.name = componentMatch[1];
       }
     }
   }

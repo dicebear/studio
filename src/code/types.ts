@@ -86,7 +86,7 @@ export type DefinitionElement = {
   type: string;
   name?: string;
   value?: string;
-  attributes?: Record<string, string|{type: string; value: string}>;
+  attributes?: Record<string, string|{type: string; name: string}>;
   children?: DefinitionElement[];
 };
 
