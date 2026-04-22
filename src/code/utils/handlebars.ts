@@ -1,4 +1,5 @@
 import handlebars from 'handlebars';
+import { isRangeEmpty } from './rangeValue';
 
 handlebars.registerHelper('isDefined', function (val: unknown, options: unknown) {
   if (val !== undefined) {
@@ -38,6 +39,11 @@ handlebars.registerHelper('isEqual', function (val: unknown, val2: unknown, opti
 
   // @ts-ignore
   return options.inverse(this);
+});
+
+handlebars.registerHelper('hasRange', function (val: unknown, options: unknown) {
+  // @ts-ignore
+  return isRangeEmpty(val) ? options.inverse(this) : options.fn(this);
 });
 
 handlebars.registerHelper('blockFallback', function (options: unknown) {

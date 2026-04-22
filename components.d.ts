@@ -16,7 +16,11 @@ declare module 'vue' {
     InputText: typeof import('primevue/inputtext')['default']
     ProgressSpinner: typeof import('primevue/progressspinner')['default']
     Select: typeof import('primevue/select')['default']
+    Slider: typeof import('primevue/slider')['default']
     Textarea: typeof import('primevue/textarea')['default']
     ToggleSwitch: typeof import('primevue/toggleswitch')['default']
+  }
+  export interface GlobalDirectives {
+    Tooltip: typeof import('primevue/tooltip')['default']
   }
 }

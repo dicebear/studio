@@ -18,12 +18,14 @@ export type FrameSettings = {
   fileShareUrl: string;
 };
 
+export type RangeValue = number | readonly [number, number] | null;
+
 export type ComponentGroupSettings = {
   defaults: Record<string, boolean>;
   probability: number | null;
-  rotation: number | null;
-  offsetX: number | null;
-  offsetY: number | null;
+  rotation: RangeValue;
+  translateX: RangeValue;
+  translateY: RangeValue;
 };
 
 export type ColorGroupSettings = {

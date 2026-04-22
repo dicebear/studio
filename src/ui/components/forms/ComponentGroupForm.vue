@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import usePluginStore from '@/stores/plugin';
 import { useDefinitionFile } from '@/utils/useDefinitionFile';
 import Field from '../Field.vue';
+import RangeField from '../RangeField.vue';
 import ToggleGroup from '../ToggleGroup.vue';
 
 const props = defineProps<{ componentGroup: string }>();
@@ -15,72 +16,92 @@ const isDefinition = computed(() =>
   useDefinitionFile(store.data!.frame.settings.dicebearVersion),
 );
 
-type NumericOption = { label: string; value: number | null };
-
-function numericOptions(values: number[]): NumericOption[] {
-  return [
-    { label: '- None -', value: null },
-    ...values.map((v) => ({ label: String(v), value: v })),
-  ];
-}
-
-const rotations = numericOptions([
-  10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180,
-]);
-
-const offsets = numericOptions([
-  5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100,
-]);
+const probability = computed<number>({
+  get: () => (typeof settings.value.probability === 'number' ? settings.value.probability : 100),
+  set: (val: number) => {
+    settings.value.probability = val;
+  },
+});
 
 const defaultsKeys = computed(() => Object.keys(settings.value.defaults));
 </script>
 
 <template>
-  <Field label="Probability (in percent)">
-    <InputNumber
-      v-model="settings.probability"
-      :min="0"
-      :max="100"
-      placeholder="Leave blank to disable option"
-      fluid
-      size="small"
-    />
-  </Field>
+  <div class="field">
+    <div class="field-label">
+      <span class="field-label-text">Probability (in percent)</span>
+      <span class="field-value">{{ probability }}%</span>
+    </div>
+    <Slider v-model="probability" :min="0" :max="100" :step="1" />
+  </div>
 
-  <Field label="Allowed Rotation (in deg)">
-    <Select
-      v-model="settings.rotation"
-      :options="rotations"
-      option-label="label"
-      option-value="value"
-      fluid
-      size="small"
-    />
-  </Field>
+  <RangeField
+    label="Rotation (in deg)"
+    option-key="rotation"
+    :target="settings"
+    :min="-360"
+    :max="360"
+    :step="1"
+    unit="°"
+    :default-single="0"
+    :default-range="[0, 0]"
+  />
 
-  <Field label="Allowed Horizontal Offset">
-    <Select
-      v-model="settings.offsetX"
-      :options="offsets"
-      option-label="label"
-      option-value="value"
-      fluid
-      size="small"
-    />
-  </Field>
+  <RangeField
+    label="Translate X (in %)"
+    option-key="translateX"
+    :target="settings"
+    :min="-1000"
+    :max="1000"
+    :step="1"
+    unit="%"
+    :default-single="0"
+    :default-range="[0, 0]"
+  />
 
-  <Field label="Allowed Vertical Offset">
-    <Select
-      v-model="settings.offsetY"
-      :options="offsets"
-      option-label="label"
-      option-value="value"
-      fluid
-      size="small"
-    />
-  </Field>
+  <RangeField
+    label="Translate Y (in %)"
+    option-key="translateY"
+    :target="settings"
+    :min="-1000"
+    :max="1000"
+    :step="1"
+    unit="%"
+    :default-single="0"
+    :default-range="[0, 0]"
+  />
 
   <Field v-if="!isDefinition" label="Defaults">
     <ToggleGroup :values="settings.defaults" :options="defaultsKeys" />
   </Field>
 </template>
+
+<style scoped>
+.field {
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--figma-color-text);
+}
+
+.field-label-text {
+  white-space: nowrap;
+}
+
+.field-value {
+  margin-left: auto;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+</style>

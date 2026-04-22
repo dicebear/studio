@@ -1,7 +1,10 @@
 import { JSONSchema7, JSONSchema7Definition } from 'json-schema';
 import { filterDefaults } from '../utils/filterDefaults';
+import { rangeSchemaBounds } from '../utils/rangeValue';
 import sortObject from 'sort-object-keys';
 import type { Export } from '../types';
+
+const RANGE_FIELD_KEYS = ['rotation', 'translateX', 'translateY'] as const;
 
 export function createExportJsonSchema(exportData: Export): JSONSchema7 {
   const schemaProperties: Record<string, JSONSchema7Definition> = {};
@@ -32,42 +35,24 @@ export function createExportJsonSchema(exportData: Export): JSONSchema7 {
       };
     }
 
-    if (componentGroup.settings.rotation) {
-      schemaProperties[`${componentGroupName}Rotation`] = {
-        type: 'array',
-        items: {
-          type: 'integer',
-          minimum: componentGroup.settings.rotation * -1,
-          maximum: componentGroup.settings.rotation,
-        },
-        maxItems: 2,
-        default: [componentGroup.settings.rotation * -1, componentGroup.settings.rotation],
-      };
-    }
+    for (const key of RANGE_FIELD_KEYS) {
+      const bounds = rangeSchemaBounds(componentGroup.settings[key]);
 
-    if (componentGroup.settings.offsetX) {
-      schemaProperties[`${componentGroupName}OffsetX`] = {
-        type: 'array',
-        items: {
-          type: 'integer',
-          minimum: componentGroup.settings.offsetX * -1,
-          maximum: componentGroup.settings.offsetX,
-        },
-        maxItems: 2,
-        default: [componentGroup.settings.offsetX * -1, componentGroup.settings.offsetX],
-      };
-    }
+      if (!bounds) {
+        continue;
+      }
 
-    if (componentGroup.settings.offsetY) {
-      schemaProperties[`${componentGroupName}OffsetY`] = {
+      const suffix = key.charAt(0).toUpperCase() + key.slice(1);
+
+      schemaProperties[`${componentGroupName}${suffix}`] = {
         type: 'array',
         items: {
           type: 'integer',
-          minimum: componentGroup.settings.offsetY * -1,
-          maximum: componentGroup.settings.offsetY,
+          minimum: bounds.minimum,
+          maximum: bounds.maximum,
         },
         maxItems: 2,
-        default: [componentGroup.settings.offsetY * -1, componentGroup.settings.offsetY],
+        default: bounds.default,
       };
     }
   }

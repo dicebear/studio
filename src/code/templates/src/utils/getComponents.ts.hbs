@@ -25,21 +25,21 @@ export function getComponents({ prng, options }: Props): ComponentPickCollection
     {{#if ../hasTransform}}
     width: {{width}},
     height: {{height}},
-    {{#if this.settings.rotation}}
+    {{#hasRange this.settings.rotation}}
     rotation: options.{{@key}}Rotation?.length ? options.{{@key}}Rotation : [0],
     {{else}}
     rotation: [0],
-    {{/if}}
-    {{#if this.settings.offsetX}}
-    offsetX: options.{{@key}}OffsetX?.length ? options.{{@key}}OffsetX : [0],
+    {{/hasRange}}
+    {{#hasRange this.settings.translateX}}
+    translateX: options.{{@key}}TranslateX?.length ? options.{{@key}}TranslateX : [0],
     {{else}}
-    offsetX: [0],
-    {{/if}}
-    {{#if this.settings.offsetY}}
-    offsetY: options.{{@key}}OffsetY?.length ? options.{{@key}}OffsetY : [0],
+    translateX: [0],
+    {{/hasRange}}
+    {{#hasRange this.settings.translateY}}
+    translateY: options.{{@key}}TranslateY?.length ? options.{{@key}}TranslateY : [0],
     {{else}}
-    offsetY: [0],
-    {{/if}}
+    translateY: [0],
+    {{/hasRange}}
     {{/if}}
   });
   {{/each}}

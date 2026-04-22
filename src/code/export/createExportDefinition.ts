@@ -1,5 +1,6 @@
 import { DefinitionColors, DefinitionComponents, Export } from '../types';
 import { removeEmptyValuesFromObject } from '../utils/removeEmptyValuesFromObject';
+import { toRangeArray } from '../utils/rangeValue';
 import { createTemplateString } from './createTemplateString';
 import { getLicenseAsText } from '../utils/getLicenseAsText';
 import { parse } from 'svgson';
@@ -15,17 +16,17 @@ export async function createExportDefinition(exportData: Export) {
     const rotation = componentGroupValue.settings.rotation;
     const probability = componentGroupValue.settings.probability;
 
-    const offsetX = componentGroupValue.settings.offsetX;
-    const offsetY = componentGroupValue.settings.offsetY;
+    const translateX = componentGroupValue.settings.translateX;
+    const translateY = componentGroupValue.settings.translateY;
 
     components[componentGroupKey] = {
       width: 0,
       height: 0,
-      rotate: typeof rotation === 'number' ? (rotation === 0 ? [rotation] : [rotation * -1, rotation]) : undefined,
+      rotate: toRangeArray(rotation),
       probability: typeof probability === 'number' ? probability : undefined,
       translate: {
-        x: typeof offsetX === 'number' ? (offsetX === 0 ? [offsetX] : [offsetX * -1, offsetX]) : undefined,
-        y: typeof offsetY === 'number' ? (offsetY === 0 ? [offsetY] : [offsetY * -1, offsetY]) : undefined,
+        x: toRangeArray(translateX),
+        y: toRangeArray(translateY),
       },
       variants: {},
     };

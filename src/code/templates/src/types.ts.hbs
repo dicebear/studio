@@ -17,15 +17,15 @@ export interface Options {
   {{#isNotNull this.settings.probability.length}}
   {{@key}}Probability?: number;
   {{/isNotNull}}
-  {{#if this.settings.rotation}}
+  {{#hasRange this.settings.rotation}}
   {{@key}}Rotation?: number[];
-  {{/if}}
-  {{#if this.settings.offsetX}}
-  {{@key}}OffsetX?: number[];
-  {{/if}}
-  {{#if this.settings.offsetY}}
-  {{@key}}OffsetY?: number[];
-  {{/if}}
+  {{/hasRange}}
+  {{#hasRange this.settings.translateX}}
+  {{@key}}TranslateX?: number[];
+  {{/hasRange}}
+  {{#hasRange this.settings.translateY}}
+  {{@key}}TranslateY?: number[];
+  {{/hasRange}}
   {{/each}}
   {{#each colors}}
   {{#if this.isUsedByComponents}}
@@ -52,8 +52,8 @@ export type ComponentPick =
       value: ComponentGroupItem;
       {{#if hasTransform}}
       rotation: number | undefined,
-      offsetX: number | undefined,
-      offsetY: number | undefined,
+      translateX: number | undefined,
+      translateY: number | undefined,
       {{/if}}
     }
   | undefined;

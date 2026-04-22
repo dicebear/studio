@@ -3,6 +3,7 @@ import { createTemplateString } from './createTemplateString';
 import { Export } from '../types';
 import { createExportJsonSchema } from './createExportJsonSchema';
 import handlebars from '../utils/handlebars';
+import { isRangeEmpty } from '../utils/rangeValue';
 
 export async function createExportFiles(exportData: Export) {
   const schema = createExportJsonSchema(exportData);
@@ -11,10 +12,12 @@ export async function createExportFiles(exportData: Export) {
   const hasPreCreateHook = !!exportData.frame.settings.onPreCreateHook.trim();
   const hasPostCreateHook = !!exportData.frame.settings.onPostCreateHook.trim();
 
-  const hasTransform =
-    Object.values(exportData.components).findIndex((v) => {
-      return v.settings.offsetX || v.settings.offsetY || v.settings.rotation;
-    }) >= 0;
+  const hasTransform = Object.values(exportData.components).some(
+    (v) =>
+      !isRangeEmpty(v.settings.translateX) ||
+      !isRangeEmpty(v.settings.translateY) ||
+      !isRangeEmpty(v.settings.rotation),
+  );
 
   const files: Record<string, string> = {
     '.editorconfig': templates['.editorconfig'],

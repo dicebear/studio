@@ -23,13 +23,13 @@ type Props = {
   width: number,
   height: number,
   rotation: number[],
-  offsetX: number[],
-  offsetY: number[],
+  translateX: number[],
+  translateY: number[],
   {{/if}}
 }
 
 {{#if hasTransform}}
-export function pickComponent({ prng, group, width, height, values = [], rotation, offsetX, offsetY}: Props): ComponentPick {
+export function pickComponent({ prng, group, width, height, values = [], rotation, translateX, translateY }: Props): ComponentPick {
 {{else}}
 export function pickComponent({ prng, group, values = []}: Props): ComponentPick {
 {{/if}}
@@ -39,8 +39,8 @@ export function pickComponent({ prng, group, values = []}: Props): ComponentPick
 
   {{#if hasTransform}}
   const pickedRotation = prng.integer(Math.min(...rotation), Math.max(...rotation));
-  const pickedOffsetX = prng.integer(Math.min(...offsetX), Math.max(...offsetX));
-  const pickedOffsetY = prng.integer(Math.min(...offsetY), Math.max(...offsetY));
+  const pickedTranslateX = prng.integer(Math.min(...translateX), Math.max(...translateX));
+  const pickedTranslateY = prng.integer(Math.min(...translateY), Math.max(...translateY));
 
   {{/if}}
   if (key && componentCollection[group][key]) {
@@ -54,15 +54,15 @@ export function pickComponent({ prng, group, values = []}: Props): ComponentPick
       ) {
         let result = componentCollection[group][key](components, colors);
 
-        if (this.rotation || this.offsetX || this.offsetY) {
-          result = `<g transform="translate(${(this.offsetX ?? 0)}, ${this.offsetY ?? 0}) rotate(${this.rotation ?? 0} ${width / 2} ${height / 2})">${result}</g>`;
+        if (this.rotation || this.translateX || this.translateY) {
+          result = `<g transform="translate(${(this.translateX ?? 0)}, ${this.translateY ?? 0}) rotate(${this.rotation ?? 0} ${width / 2} ${height / 2})">${result}</g>`;
         }
 
         return result;
       },
       rotation: pickedRotation,
-      offsetX: pickedOffsetX,
-      offsetY: pickedOffsetY,
+      translateX: pickedTranslateX,
+      translateY: pickedTranslateY,
       {{else}}
       value: componentCollection[group][key],
       {{/if}}
