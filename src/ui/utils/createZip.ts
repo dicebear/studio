@@ -1,10 +1,10 @@
 import JSZip from 'jszip';
 
-export async function createZip(files) {
+export async function createZip(files: Record<string, string>): Promise<Blob> {
   const zip = new JSZip();
 
-  for (let path in files) {
-    if (false === files.hasOwnProperty(path)) {
+  for (const path in files) {
+    if (!Object.prototype.hasOwnProperty.call(files, path)) {
       continue;
     }
 

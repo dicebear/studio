@@ -52,7 +52,7 @@ export async function prepareExport() {
       };
     }
 
-    for (const key of colorGroups.keys()) {
+    for (const _key of colorGroups.keys()) {
       if (typeof exportColorGroup.settings.notEqualTo !== 'object') {
         exportColorGroup.settings.notEqualTo = {};
       }

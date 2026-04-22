@@ -1,5 +1,4 @@
-// @ts-ignore
-import * as handlebars from 'handlebars/dist/cjs/handlebars.js';
+import handlebars from 'handlebars';
 
 handlebars.registerHelper('isDefined', function (val: unknown, options: unknown) {
   if (val !== undefined) {
