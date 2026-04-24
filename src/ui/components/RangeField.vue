@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { useRangeField } from '../composables/useRangeField';
 import type { ComponentGroupSettings, RangeValue } from '../types';
 
@@ -44,6 +45,12 @@ const rangeVal = rangeComputed(
   props.optionKey,
   props.defaultRange ?? props.defaultSingle,
 );
+
+const displayRange = computed<[number, number]>(() => {
+  const [a, b] = rangeVal.value;
+
+  return [Math.min(a, b), Math.max(a, b)];
+});
 </script>
 
 <template>
@@ -75,7 +82,7 @@ const rangeVal = rangeComputed(
         </svg>
       </Button>
       <span v-if="isRangeMode(optionKey)" class="field-value">
-        {{ rangeVal[0] }}{{ unit }} — {{ rangeVal[1] }}{{ unit }}
+        {{ displayRange[0] }}{{ unit }} — {{ displayRange[1] }}{{ unit }}
       </span>
       <span v-else class="field-value">{{ singleVal }}{{ unit }}</span>
     </div>

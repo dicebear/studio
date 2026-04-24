@@ -1,5 +1,9 @@
 import type { RangeValue } from '../types';
 
+function sortPair(a: number, b: number): [number, number] {
+  return [Math.min(a, b), Math.max(a, b)];
+}
+
 export function isRangeEmpty(v: unknown): boolean {
   if (v === null || v === undefined) {
     return true;
@@ -25,7 +29,7 @@ export function toRangeArray(v: RangeValue): number[] | undefined {
     return undefined;
   }
 
-  return [v[0], v[1]];
+  return sortPair(v[0], v[1]);
 }
 
 const SCALE_NEUTRAL = 1;
@@ -47,7 +51,7 @@ export function toScaleArray(v: RangeValue): number[] | undefined {
     return undefined;
   }
 
-  return [v[0], v[1]];
+  return sortPair(v[0], v[1]);
 }
 
 export type RangeSchemaBounds = {
@@ -73,9 +77,11 @@ export function rangeSchemaBounds(v: RangeValue): RangeSchemaBounds | null {
     return null;
   }
 
+  const [lo, hi] = sortPair(v[0], v[1]);
+
   return {
-    minimum: Math.min(v[0], v[1]),
-    maximum: Math.max(v[0], v[1]),
-    default: [v[0], v[1]],
+    minimum: lo,
+    maximum: hi,
+    default: [lo, hi],
   };
 }
