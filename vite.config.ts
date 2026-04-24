@@ -6,6 +6,8 @@ import Components from 'unplugin-vue-components/vite';
 import { PrimeVueResolver } from '@primevue/auto-import-resolver';
 import { viteSingleFile } from 'vite-plugin-singlefile';
 
+const isWatch = process.argv.includes('--watch');
+
 export default defineConfig({
   plugins: [
     vue(),
@@ -22,7 +24,7 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    emptyOutDir: true,
+    emptyOutDir: !isWatch,
     cssCodeSplit: false,
     assetsInlineLimit: 100_000_000,
     chunkSizeWarningLimit: 10_000,
