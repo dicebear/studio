@@ -44,6 +44,16 @@ export function useRangeField<T extends object>(target: T) {
     }
   }
 
+  function resetRangeField(key: keyof T & string, defaultRange?: readonly number[]) {
+    write(key, null);
+
+    if (defaultRange && defaultRange.length === 2) {
+      rangeMode[key] = true;
+    } else {
+      delete rangeMode[key];
+    }
+  }
+
   function singleComputed(key: keyof T & string, fallback: number) {
     return computed<number>({
       get: () => {
@@ -91,6 +101,7 @@ export function useRangeField<T extends object>(target: T) {
     rangeMode,
     isRangeMode,
     toggleRangeMode,
+    resetRangeField,
     singleComputed,
     rangeComputed,
   };

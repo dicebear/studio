@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import usePluginStore from '@/stores/plugin';
 import { useDefinitionFile } from '@/utils/useDefinitionFile';
 import Field from '../Field.vue';
+import FieldReset from '../FieldReset.vue';
 import RangeField from '../RangeField.vue';
 import ToggleGroup from '../ToggleGroup.vue';
 
@@ -30,6 +31,10 @@ const defaultsKeys = computed(() => Object.keys(settings.value.defaults));
   <div class="field">
     <div class="field-label">
       <span class="field-label-text">Probability (in percent)</span>
+      <FieldReset
+        v-if="settings.probability !== null"
+        @click="settings.probability = null"
+      />
       <span class="field-value">{{ probability }}%</span>
     </div>
     <Slider v-model="probability" :min="0" :max="100" :step="1" />

@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue';
+import { ArrowLeftRight } from '@lucide/vue';
 import { useRangeField } from '../composables/useRangeField';
 import type { ComponentGroupSettings, RangeValue } from '../types';
+import FieldReset from './FieldReset.vue';
 
 type RangeKey = {
   [K in keyof ComponentGroupSettings]: ComponentGroupSettings[K] extends RangeValue
@@ -30,6 +32,7 @@ const {
   rangeMode,
   isRangeMode,
   toggleRangeMode,
+  resetRangeField,
   singleComputed,
   rangeComputed,
 } = useRangeField(props.target);
@@ -64,23 +67,12 @@ const displayRange = computed<[number, number]>(() => {
         class="field-toggle"
         @click="toggleRangeMode(optionKey, defaultSingle)"
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="12"
-          height="12"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path d="m16 3 4 4-4 4" />
-          <path d="M20 7H4" />
-          <path d="m8 21-4-4 4-4" />
-          <path d="M4 17h16" />
-        </svg>
+        <ArrowLeftRight :size="14" />
       </Button>
+      <FieldReset
+        v-if="target[optionKey] !== null"
+        @click="resetRangeField(optionKey, defaultRange)"
+      />
       <span v-if="isRangeMode(optionKey)" class="field-value">
         {{ displayRange[0] }}{{ unit }} — {{ displayRange[1] }}{{ unit }}
       </span>
