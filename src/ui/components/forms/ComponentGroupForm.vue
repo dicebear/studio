@@ -71,6 +71,18 @@ const defaultsKeys = computed(() => Object.keys(settings.value.defaults));
     :default-range="[0, 0]"
   />
 
+  <RangeField
+    v-if="isDefinition"
+    label="Scale"
+    option-key="scale"
+    :target="settings"
+    :min="0"
+    :max="10"
+    :step="0.01"
+    :default-single="1"
+    :default-range="[1, 1]"
+  />
+
   <Field v-if="!isDefinition" label="Defaults">
     <ToggleGroup :values="settings.defaults" :options="defaultsKeys" />
   </Field>

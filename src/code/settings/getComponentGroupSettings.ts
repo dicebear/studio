@@ -20,6 +20,7 @@ export function getComponentGroupSettings(frame: FrameNode, componentGroup: stri
     defaults: {},
     probability: null,
     rotation: null,
+    scale: null,
     translateX: null,
     translateY: null,
     ...stored,

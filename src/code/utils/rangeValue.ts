@@ -28,6 +28,28 @@ export function toRangeArray(v: RangeValue): number[] | undefined {
   return [v[0], v[1]];
 }
 
+const SCALE_NEUTRAL = 1;
+
+export function toScaleArray(v: RangeValue): number[] | undefined {
+  if (v === null) {
+    return undefined;
+  }
+
+  if (typeof v === 'number') {
+    if (v === SCALE_NEUTRAL) {
+      return undefined;
+    }
+
+    return [v, v];
+  }
+
+  if (v[0] === SCALE_NEUTRAL && v[1] === SCALE_NEUTRAL) {
+    return undefined;
+  }
+
+  return [v[0], v[1]];
+}
+
 export type RangeSchemaBounds = {
   minimum: number;
   maximum: number;

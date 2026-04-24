@@ -24,6 +24,7 @@ export type ComponentGroupSettings = {
   defaults: Record<string, boolean>;
   probability: number | null;
   rotation: RangeValue;
+  scale: RangeValue;
   translateX: RangeValue;
   translateY: RangeValue;
 };
@@ -97,6 +98,7 @@ export type DefinitionComponents = Record<string, {
   height: number;
   probability?: number;
   rotate?: number[];
+  scale?: number[];
   translate?: {
     x?: number[];
     y?: number[];
