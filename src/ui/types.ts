@@ -50,6 +50,8 @@ export type ExportComponentGroup = {
   collection: Record<string, ExportComponent>;
   width: number;
   height: number;
+  /** When set, this entry is an alias of the named source group. */
+  extendsGroup?: string;
 };
 
 export type ExportColorGroup = {

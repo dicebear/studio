@@ -1,8 +1,10 @@
 import { getNameParts } from '../utils/getNameParts';
 import { findChildrenComponentNodes } from './findChildrenComponentNodes';
 
-export function findAllComponentGroups() {
-  const componentGroups = new Map();
+export type ComponentGroupsMap = Map<string, Map<string, ComponentNode>>;
+
+export function findAllComponentGroups(): ComponentGroupsMap {
+  const componentGroups: ComponentGroupsMap = new Map();
 
   for (const page of figma.root.children) {
     const components = findChildrenComponentNodes(page);

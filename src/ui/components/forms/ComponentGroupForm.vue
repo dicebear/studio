@@ -11,7 +11,9 @@ const props = defineProps<{ componentGroup: string }>();
 
 const store = usePluginStore();
 
-const settings = computed(() => store.data!.components[props.componentGroup].settings);
+const group = computed(() => store.data!.components[props.componentGroup]);
+const settings = computed(() => group.value.settings);
+const extendsGroup = computed(() => group.value.extendsGroup);
 
 const isDefinition = computed(() =>
   useDefinitionFile(store.data!.frame.settings.dicebearVersion),
@@ -28,6 +30,11 @@ const defaultsKeys = computed(() => Object.keys(settings.value.defaults));
 </script>
 
 <template>
+  <div v-if="extendsGroup" class="alias-banner">
+    Alias of <strong>{{ extendsGroup }}</strong>. Variants and dimensions are
+    inherited from the source.
+  </div>
+
   <div class="field">
     <div class="field-label">
       <span class="field-label-text">Probability (in percent)</span>
@@ -88,7 +95,7 @@ const defaultsKeys = computed(() => Object.keys(settings.value.defaults));
     :default-range="[1, 1]"
   />
 
-  <Field v-if="!isDefinition" label="Defaults">
+  <Field v-if="!isDefinition && !extendsGroup" label="Defaults">
     <ToggleGroup :values="settings.defaults" :options="defaultsKeys" />
   </Field>
 </template>
@@ -120,5 +127,20 @@ const defaultsKeys = computed(() => Object.keys(settings.value.defaults));
   margin-left: auto;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+}
+
+.alias-banner {
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--figma-color-border);
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--figma-color-text-secondary);
+  background-color: var(--figma-color-bg-secondary);
+}
+
+.alias-banner strong {
+  color: var(--figma-color-text);
+  font-weight: 600;
 }
 </style>

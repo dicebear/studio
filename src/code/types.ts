@@ -50,6 +50,8 @@ export type ExportComponentGroup = {
   collection: Record<string, ExportComponent>;
   width: number;
   height: number;
+  /** When set, this entry is an alias and inherits collection/dimensions from the named group. */
+  extendsGroup?: string;
 };
 
 export type ExportColorGroup = {
@@ -93,7 +95,7 @@ export type DefinitionElement = {
   children?: DefinitionElement[];
 };
 
-export type DefinitionComponents = Record<string, {
+export type DefinitionComponentBase = {
   width: number;
   height: number;
   probability?: number;
@@ -106,7 +108,20 @@ export type DefinitionComponents = Record<string, {
   variants: Record<string, {
     elements: DefinitionElement[];
   }>;
-}>;
+};
+
+export type DefinitionComponentAlias = {
+  extends: string;
+  probability?: number;
+  rotate?: number[];
+  scale?: number[];
+  translate?: {
+    x?: number[];
+    y?: number[];
+  };
+};
+
+export type DefinitionComponents = Record<string, DefinitionComponentBase | DefinitionComponentAlias>;
 
 export type DefinitionColors = Record<string, {
   values: string[];

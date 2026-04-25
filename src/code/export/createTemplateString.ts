@@ -8,8 +8,10 @@ import { useDefinitionFile } from '../utils/useDefinitionFile';
 import { PluginConfig } from 'svgo';
 
 export async function createTemplateString(exportData: Export, node: FrameNode | ComponentNode) {
+  const aliasesEnabled = useDefinitionFile(exportData.frame.settings.dicebearVersion);
+
   // Calculate the export info for the node and export to svg
-  let result = await calculateNodeExportInfo(node);
+  let result = await calculateNodeExportInfo(node, aliasesEnabled);
 
   // Apply export info to svg
   result = await applyNodeExportInfo(result);

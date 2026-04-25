@@ -4,9 +4,13 @@ import { fastFindAll } from '../utils/fastFindAll';
 import { getColorsByNode } from '../utils/getColorsByNode';
 import { getNameParts } from '../utils/getNameParts';
 import { readNodeExportInfo } from '../utils/readNodeExportInfo';
+import { resolveComponentName } from '../utils/resolveComponentName';
 import { writeNodeExportInfo } from '../utils/writeNodeExportInfo';
 
-export async function calculateNodeExportInfo(node: ComponentNode | FrameNode) {
+export async function calculateNodeExportInfo(
+  node: ComponentNode | FrameNode,
+  aliasesEnabled: boolean,
+) {
   const cloneComponent = figma.createComponent();
   const cloneComponentRectangle = figma.createRectangle();
 
@@ -45,7 +49,11 @@ export async function calculateNodeExportInfo(node: ComponentNode | FrameNode) {
         y: instanceNode.height / mainComponent.height,
       };
 
-      nodeExportInfo.componentGroup = getNameParts(mainComponent.name).group;
+      nodeExportInfo.componentGroup = resolveComponentName(
+        instanceNode,
+        mainComponent,
+        aliasesEnabled,
+      ).componentName;
 
       const width = instanceNode.width;
       const height = instanceNode.height;

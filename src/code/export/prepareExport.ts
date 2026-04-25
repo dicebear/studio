@@ -1,6 +1,6 @@
 import rgbHex from 'rgb-hex';
 import { Export, ExportColorGroup, ExportComponentGroup } from '../types';
-import { findAllComponentGroups } from '../queries/findAllComponentGroups';
+import { findAllComponentGroups, type ComponentGroupsMap } from '../queries/findAllComponentGroups';
 import { findAllColorGroups } from '../queries/findAllColorGroups';
 import { getFrameSelection } from '../utils/getFrameSelection';
 import { getFrameSettings } from '../settings/getFrameSettings';
@@ -10,6 +10,8 @@ import { findAllNodesWithColor } from '../queries/findAllNodesWithColor';
 import { getColorsByNode } from '../utils/getColorsByNode';
 import { getNameParts } from '../utils/getNameParts';
 import { findAllInstanceNodes } from '../queries/findAllInstanceNodes';
+import { resolveComponentName } from '../utils/resolveComponentName';
+import { useDefinitionFile } from '../utils/useDefinitionFile';
 
 export async function prepareExport() {
   await figma.loadAllPagesAsync();
@@ -27,6 +29,8 @@ export async function prepareExport() {
     components: {},
     colors: {},
   };
+
+  const aliasesEnabled = useDefinitionFile(exportData.frame.settings.dicebearVersion);
 
   let queueItem;
 
@@ -83,36 +87,108 @@ export async function prepareExport() {
         continue;
       }
 
-      const componentGroupName = getNameParts(mainComponent.name).group;
+      const resolved = resolveComponentName(instance, mainComponent, aliasesEnabled);
 
-      if (undefined === exportData.components[componentGroupName]) {
-        const settings = getComponentGroupSettings(frameSelection, componentGroupName);
-        const componentGroup: ExportComponentGroup = (exportData.components[componentGroupName] = {
-          settings: {
-            ...settings,
-            defaults: {},
-          },
-          collection: {},
-          width: 0,
-          height: 0,
-        });
+      // Ensure the source group exists, regardless of whether this instance
+      // is itself the source or an alias of it. Alias variants are inherited
+      // from the source at render time, so the source must be exported.
+      ensureBaseGroup(
+        exportData,
+        frameSelection,
+        componentGroups,
+        resolved.masterGroup,
+        queue,
+      );
 
-        for (const [componentName, component] of componentGroups.get(componentGroupName)) {
-          componentGroup.width = component.width;
-          componentGroup.height = component.height;
-
-          componentGroup.collection[componentName] = {
-            id: component.id,
-            name: component.name,
-          };
-
-          componentGroup.settings.defaults[componentName] = settings.defaults[componentName] ?? true;
-
-          queue.push(component);
-        }
+      if (!resolved.isAlias) {
+        continue;
       }
+
+      const componentMapKey = resolved.componentName;
+
+      // Alias name collides with a master group on the page — the rename
+      // would shadow that group at render time.
+      if (componentGroups.has(componentMapKey)) {
+        throw new Error(
+          `Layer name "${componentMapKey}" collides with the existing component group "${componentMapKey}". ` +
+            `Rename the instance to a unique identifier or revert the rename.`,
+        );
+      }
+
+      const existing = exportData.components[componentMapKey];
+
+      if (existing && existing.extendsGroup && existing.extendsGroup !== resolved.masterGroup) {
+        throw new Error(
+          `Two instances are renamed to "${componentMapKey}" but reference different source ` +
+            `components ("${existing.extendsGroup}" and "${resolved.masterGroup}"). Rename one of them.`,
+        );
+      }
+
+      if (existing) {
+        continue;
+      }
+
+      const sourceGroup = exportData.components[resolved.masterGroup];
+
+      if (sourceGroup === undefined) {
+        continue;
+      }
+
+      exportData.components[componentMapKey] = {
+        settings: {
+          ...getComponentGroupSettings(frameSelection, componentMapKey),
+          defaults: { ...sourceGroup.settings.defaults },
+        },
+        collection: sourceGroup.collection,
+        width: sourceGroup.width,
+        height: sourceGroup.height,
+        extendsGroup: resolved.masterGroup,
+      };
     }
   }
 
   return exportData;
+}
+
+function ensureBaseGroup(
+  exportData: Export,
+  frame: FrameNode,
+  componentGroups: ComponentGroupsMap,
+  componentGroupName: string,
+  queue: ChildrenMixin[],
+): void {
+  if (undefined !== exportData.components[componentGroupName]) {
+    return;
+  }
+
+  const sourceComponents = componentGroups.get(componentGroupName);
+
+  if (sourceComponents === undefined) {
+    return;
+  }
+
+  const settings = getComponentGroupSettings(frame, componentGroupName);
+  const componentGroup: ExportComponentGroup = (exportData.components[componentGroupName] = {
+    settings: {
+      ...settings,
+      defaults: {},
+    },
+    collection: {},
+    width: 0,
+    height: 0,
+  });
+
+  for (const [componentName, component] of sourceComponents) {
+    componentGroup.width = component.width;
+    componentGroup.height = component.height;
+
+    componentGroup.collection[componentName] = {
+      id: component.id,
+      name: component.name,
+    };
+
+    componentGroup.settings.defaults[componentName] = settings.defaults[componentName] ?? true;
+
+    queue.push(component);
+  }
 }

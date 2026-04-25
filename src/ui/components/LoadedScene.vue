@@ -18,7 +18,35 @@ const isDefinition = computed(() =>
   useDefinitionFile(data.value.frame.settings.dicebearVersion),
 );
 
-const componentGroupNames = computed(() => Object.keys(data.value.components));
+const componentMenuEntries = computed(() => {
+  const entries = Object.entries(data.value.components);
+  const baseNames = entries
+    .filter(([, group]) => !group.extendsGroup)
+    .map(([name]) => name)
+    .sort();
+  const aliasesBySource = new Map<string, string[]>();
+
+  for (const [name, group] of entries) {
+    if (!group.extendsGroup) {
+      continue;
+    }
+
+    const list = aliasesBySource.get(group.extendsGroup) ?? [];
+    list.push(name);
+    aliasesBySource.set(group.extendsGroup, list);
+  }
+
+  const result: { name: string; isAlias: boolean }[] = [];
+
+  for (const baseName of baseNames) {
+    result.push({ name: baseName, isAlias: false });
+    for (const alias of (aliasesBySource.get(baseName) ?? []).sort()) {
+      result.push({ name: alias, isAlias: true });
+    }
+  }
+
+  return result;
+});
 
 const usedColorGroups = computed(() =>
   Object.keys(data.value.colors).filter(
@@ -37,15 +65,16 @@ const usedColorGroups = computed(() =>
       <MenuItem v-if="!isDefinition" kind="hook">Hooks</MenuItem>
     </div>
 
-    <div v-if="componentGroupNames.length > 0" class="menu-wrapper">
+    <div v-if="componentMenuEntries.length > 0" class="menu-wrapper">
       <div class="menu-section">Components</div>
       <MenuItem
-        v-for="name in componentGroupNames"
-        :key="name"
+        v-for="entry in componentMenuEntries"
+        :key="entry.name"
         kind="component"
-        :name="name"
+        :name="entry.name"
+        :class="{ 'is-alias': entry.isAlias }"
       >
-        {{ name }}
+        {{ entry.name }}
       </MenuItem>
     </div>
 
@@ -108,5 +137,16 @@ const usedColorGroups = computed(() =>
 
 .menu-wrapper {
   margin: 8px 0;
+}
+
+:deep(.menu-item.is-alias) {
+  padding-left: 28px;
+  color: var(--figma-color-text-secondary);
+}
+
+:deep(.menu-item.is-alias)::before {
+  content: '↳';
+  margin-right: 6px;
+  opacity: 0.6;
 }
 </style>
