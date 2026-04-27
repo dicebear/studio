@@ -4,54 +4,80 @@ function sortPair(a: number, b: number): [number, number] {
   return [Math.min(a, b), Math.max(a, b)];
 }
 
+function isFiniteNumber(v: unknown): v is number {
+  return typeof v === 'number' && Number.isFinite(v);
+}
+
+function isFiniteTuple(v: unknown): v is readonly [number, number] {
+  return Array.isArray(v) && v.length === 2 && isFiniteNumber(v[0]) && isFiniteNumber(v[1]);
+}
+
+function normalizeRange(v: unknown): RangeValue {
+  if (isFiniteNumber(v)) {
+    return v;
+  }
+
+  if (isFiniteTuple(v)) {
+    return v;
+  }
+
+  return null;
+}
+
 export function isRangeEmpty(v: unknown): boolean {
-  if (v === null || v === undefined) {
+  const n = normalizeRange(v);
+
+  if (n === null) {
     return true;
   }
 
-  if (typeof v === 'number') {
-    return v === 0;
+  if (typeof n === 'number') {
+    return n === 0;
   }
 
-  return Array.isArray(v) && v[0] === 0 && v[1] === 0;
+  return n[0] === 0 && n[1] === 0;
 }
 
 export function toRangeArray(v: RangeValue): number[] | undefined {
-  if (v === null || v === 0) {
+  const n = normalizeRange(v);
+
+  if (n === null || n === 0) {
     return undefined;
   }
 
-  if (typeof v === 'number') {
-    return [v * -1, v];
+  if (typeof n === 'number') {
+    return [n * -1, n];
   }
 
-  if (v[0] === 0 && v[1] === 0) {
+  if (n[0] === 0 && n[1] === 0) {
     return undefined;
   }
 
-  return sortPair(v[0], v[1]);
+  return sortPair(n[0], n[1]);
 }
 
 const SCALE_NEUTRAL = 1;
 
 export function toScaleArray(v: RangeValue): number[] | undefined {
-  if (v === null) {
+  const n = normalizeRange(v);
+
+  if (n === null) {
     return undefined;
   }
 
-  if (typeof v === 'number') {
-    if (v === SCALE_NEUTRAL) {
+  if (typeof n === 'number') {
+    if (n === SCALE_NEUTRAL) {
       return undefined;
     }
 
-    return [v, v];
+    return [n, n];
   }
 
-  if (v[0] === SCALE_NEUTRAL && v[1] === SCALE_NEUTRAL) {
+  if (n[0] === SCALE_NEUTRAL && n[1] === SCALE_NEUTRAL) {
     return undefined;
   }
 
-  return sortPair(v[0], v[1]);
+  return sortPair(n[0], n[1]);
 }
 
 export type RangeSchemaBounds = {
@@ -61,23 +87,25 @@ export type RangeSchemaBounds = {
 };
 
 export function rangeSchemaBounds(v: RangeValue): RangeSchemaBounds | null {
-  if (v === null || v === 0) {
+  const n = normalizeRange(v);
+
+  if (n === null || n === 0) {
     return null;
   }
 
-  if (typeof v === 'number') {
+  if (typeof n === 'number') {
     return {
-      minimum: v * -1,
-      maximum: v,
-      default: [v * -1, v],
+      minimum: n * -1,
+      maximum: n,
+      default: [n * -1, n],
     };
   }
 
-  if (v[0] === 0 && v[1] === 0) {
+  if (n[0] === 0 && n[1] === 0) {
     return null;
   }
 
-  const [lo, hi] = sortPair(v[0], v[1]);
+  const [lo, hi] = sortPair(n[0], n[1]);
 
   return {
     minimum: lo,
