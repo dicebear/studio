@@ -71,14 +71,27 @@ export async function applyNormalize(groupName: string): Promise<void> {
       }
     }
 
-    if (dx !== 0 || dy !== 0) {
-      for (const instance of instances) {
+    for (const inst of instances) {
+      if (dx !== 0 || dy !== 0) {
         try {
-          instance.x -= dx;
-          instance.y -= dy;
+          inst.node.x -= dx * inst.scaleX;
+          inst.node.y -= dy * inst.scaleY;
         } catch {
-          // Defensive: Figma may still reject the assignment in edge cases
-          // (locked layouts, plugin-typings drift).
+          // Defensive: Figma may still reject the assignment in edge cases.
+        }
+      }
+
+      const newWidth = plan.targetWidth * inst.scaleX;
+      const newHeight = plan.targetHeight * inst.scaleY;
+
+      if (
+        Math.abs(inst.node.width - newWidth) > TOLERANCE ||
+        Math.abs(inst.node.height - newHeight) > TOLERANCE
+      ) {
+        try {
+          inst.node.resizeWithoutConstraints(newWidth, newHeight);
+        } catch {
+          // Instance is locked or otherwise non-resizable.
         }
       }
     }
