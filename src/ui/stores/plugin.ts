@@ -5,9 +5,11 @@ import {
   sanitizeComponentSettings,
   sanitizeFrameSettings,
 } from '../utils/sanitizeSettings';
-import type { ExportData } from '../types';
+import type { ExportData, NormalizeData } from '../types';
 
 export type SceneType = 'loading' | 'loaded' | 'error';
+
+export type ComponentTab = 'settings' | 'normalize';
 
 export type StageKind =
   | 'general'
@@ -49,6 +51,9 @@ function snapshotSettings(nextData: ExportData): SettingsSnapshot {
 const usePluginStore = defineStore('plugin', () => {
   const type = ref<SceneType>('loading');
   const data = ref<ExportData | null>(null);
+  const normalize = ref<Record<string, NormalizeData>>({});
+  const normalizeErrors = ref<Record<string, string>>({});
+  const componentTab = ref<ComponentTab>('settings');
   const message = ref<string>('');
   const activeStageKind = ref<StageKind>('general');
   const activeStageName = ref<string>('');
@@ -92,6 +97,9 @@ const usePluginStore = defineStore('plugin', () => {
   return {
     type,
     data,
+    normalize,
+    normalizeErrors,
+    componentTab,
     message,
     activeStageKind,
     activeStageName,

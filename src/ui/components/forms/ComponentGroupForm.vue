@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, watch } from 'vue';
 import usePluginStore from '@/stores/plugin';
 import { useDefinitionFile } from '@/utils/useDefinitionFile';
+import { postPluginMessage } from '@/utils/postPluginMessage';
+import { isClose, isVariantAligned } from '@/utils/normalize';
 import Field from '../Field.vue';
 import FieldReset from '../FieldReset.vue';
 import RangeField from '../RangeField.vue';
@@ -19,6 +21,12 @@ const isDefinition = computed(() =>
   useDefinitionFile(store.data!.frame.settings.dicebearVersion),
 );
 
+const precision = computed(() => store.data!.frame.settings.precision);
+
+function formatNumber(value: number): string {
+  return (+value.toFixed(precision.value)).toString();
+}
+
 const probability = computed<number>({
   get: () => (typeof settings.value.probability === 'number' ? settings.value.probability : 100),
   set: (val: number) => {
@@ -27,6 +35,72 @@ const probability = computed<number>({
 });
 
 const defaultsKeys = computed(() => Object.keys(settings.value.defaults));
+
+const tab = computed({
+  get: () => (extendsGroup.value ? 'settings' : store.componentTab),
+  set: (next: 'settings' | 'normalize') => {
+    if (extendsGroup.value) {
+      return;
+    }
+
+    store.componentTab = next;
+  },
+});
+
+const normalizeData = computed(() => store.normalize[props.componentGroup]);
+const normalizeError = computed(() => store.normalizeErrors[props.componentGroup]);
+
+function fetchNormalize() {
+  postPluginMessage('prepare:normalize', { groupName: props.componentGroup });
+}
+
+watch(
+  () => [tab.value, props.componentGroup] as const,
+  ([nextTab]) => {
+    if (nextTab !== 'normalize' || extendsGroup.value) {
+      return;
+    }
+
+    // Always re-fetch when entering the tab — Figma may have been edited
+    // since the last prepare and stale cache would mislead the preview.
+    fetchNormalize();
+  },
+  { immediate: true },
+);
+
+function statusFor(
+  v: NonNullable<typeof normalizeData.value>['variants'][number],
+  data: NonNullable<typeof normalizeData.value>,
+): string {
+  if (v.skipReason === 'auto-layout') {
+    return 'skipped: auto-layout';
+  }
+
+  if (v.skipReason === 'no-children') {
+    return 'skipped: empty';
+  }
+
+  if (isVariantAligned(v, data)) {
+    return 'already aligned';
+  }
+
+  const sizeMatches =
+    isClose(v.currentWidth, data.targetWidth) &&
+    isClose(v.currentHeight, data.targetHeight);
+
+  return sizeMatches ? 'will shift' : 'will resize';
+}
+
+const groupTranslateActive = computed(() => {
+  const n = normalizeData.value;
+
+  return n ? !isClose(n.willTranslate.dx, 0) || !isClose(n.willTranslate.dy, 0) : false;
+});
+
+function onRetry() {
+  delete store.normalizeErrors[props.componentGroup];
+  fetchNormalize();
+}
 </script>
 
 <template>
@@ -35,69 +109,174 @@ const defaultsKeys = computed(() => Object.keys(settings.value.defaults));
     inherited from the source.
   </div>
 
-  <div class="field">
-    <div class="field-label">
-      <span class="field-label-text">Probability (in percent)</span>
-      <FieldReset
-        v-if="settings.probability !== null"
-        @click="settings.probability = null"
-      />
-      <span class="field-value">{{ probability }}%</span>
-    </div>
-    <Slider v-model="probability" :min="0" :max="100" :step="1" />
+  <div v-if="!extendsGroup" class="tab-strip">
+    <button
+      type="button"
+      class="tab"
+      :class="{ active: tab === 'settings' }"
+      @click="tab = 'settings'"
+    >
+      Settings
+    </button>
+    <button
+      type="button"
+      class="tab"
+      :class="{ active: tab === 'normalize' }"
+      @click="tab = 'normalize'"
+    >
+      Normalize
+    </button>
   </div>
 
-  <RangeField
-    label="Rotation (in deg)"
-    option-key="rotation"
-    :target="settings"
-    :min="-360"
-    :max="360"
-    :step="1"
-    unit="°"
-    :default-single="0"
-    :default-range="[0, 0]"
-  />
+  <template v-if="extendsGroup || tab === 'settings'">
+    <div class="field">
+      <div class="field-label">
+        <span class="field-label-text">Probability (in percent)</span>
+        <FieldReset
+          v-if="settings.probability !== null"
+          @click="settings.probability = null"
+        />
+        <span class="field-value">{{ probability }}%</span>
+      </div>
+      <Slider v-model="probability" :min="0" :max="100" :step="1" />
+    </div>
 
-  <RangeField
-    label="Translate X (in %)"
-    option-key="translateX"
-    :target="settings"
-    :min="-1000"
-    :max="1000"
-    :step="1"
-    unit="%"
-    :default-single="0"
-    :default-range="[0, 0]"
-  />
+    <RangeField
+      label="Rotation (in deg)"
+      option-key="rotation"
+      :target="settings"
+      :min="-360"
+      :max="360"
+      :step="1"
+      unit="°"
+      :default-single="0"
+      :default-range="[0, 0]"
+    />
 
-  <RangeField
-    label="Translate Y (in %)"
-    option-key="translateY"
-    :target="settings"
-    :min="-1000"
-    :max="1000"
-    :step="1"
-    unit="%"
-    :default-single="0"
-    :default-range="[0, 0]"
-  />
+    <RangeField
+      label="Translate X (in %)"
+      option-key="translateX"
+      :target="settings"
+      :min="-1000"
+      :max="1000"
+      :step="1"
+      unit="%"
+      :default-single="0"
+      :default-range="[0, 0]"
+    />
 
-  <RangeField
-    v-if="isDefinition"
-    label="Scale"
-    option-key="scale"
-    :target="settings"
-    :min="0"
-    :max="10"
-    :step="0.01"
-    :default-single="1"
-    :default-range="[1, 1]"
-  />
+    <RangeField
+      label="Translate Y (in %)"
+      option-key="translateY"
+      :target="settings"
+      :min="-1000"
+      :max="1000"
+      :step="1"
+      unit="%"
+      :default-single="0"
+      :default-range="[0, 0]"
+    />
 
-  <Field v-if="!isDefinition && !extendsGroup" label="Defaults">
-    <ToggleGroup :values="settings.defaults" :options="defaultsKeys" />
-  </Field>
+    <RangeField
+      v-if="isDefinition"
+      label="Scale"
+      option-key="scale"
+      :target="settings"
+      :min="0"
+      :max="10"
+      :step="0.01"
+      :default-single="1"
+      :default-range="[1, 1]"
+    />
+
+    <Field v-if="!isDefinition && !extendsGroup" label="Defaults">
+      <ToggleGroup :values="settings.defaults" :options="defaultsKeys" />
+    </Field>
+  </template>
+
+  <template v-else>
+    <div v-if="normalizeError" class="normalize-error">
+      <p>{{ normalizeError }}</p>
+      <button type="button" class="retry" @click="onRetry">Retry</button>
+    </div>
+
+    <div v-else-if="!normalizeData" class="normalize-loading">
+      Loading variants…
+    </div>
+
+    <template v-else>
+      <p class="normalize-summary">
+        Target frame size:
+        <strong>
+          {{ formatNumber(normalizeData.targetWidth) }} ×
+          {{ formatNumber(normalizeData.targetHeight) }}
+        </strong>
+        — content-aware trim, instances are repositioned automatically so the
+        visual stays put.
+      </p>
+      <p v-if="groupTranslateActive" class="normalize-summary">
+        All children shift by
+        <strong>
+          {{ formatNumber(normalizeData.willTranslate.dx) }},
+          {{ formatNumber(normalizeData.willTranslate.dy) }}
+        </strong>; frames and instances shift in the opposite direction.
+      </p>
+
+      <table class="variants">
+        <thead>
+          <tr>
+            <th>Variant</th>
+            <th>Frame</th>
+            <th>Content</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="v in normalizeData.variants"
+            :key="v.name"
+            :class="{ skipped: !!v.skipReason }"
+          >
+            <td>{{ v.name }}</td>
+            <td>
+              {{ formatNumber(v.currentWidth) }} ×
+              {{ formatNumber(v.currentHeight) }}
+            </td>
+            <td>
+              <template v-if="!v.skipReason">
+                {{ formatNumber(v.contentWidth) }} ×
+                {{ formatNumber(v.contentHeight) }}
+              </template>
+              <template v-else>—</template>
+            </td>
+            <td>{{ statusFor(v, normalizeData) }}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p
+        v-if="normalizeData.instanceCount > 0"
+        class="instances"
+      >
+        <strong>{{ normalizeData.instanceCount }}</strong> instance{{
+          normalizeData.instanceCount === 1 ? '' : 's'
+        }}
+        will be repositioned to keep visuals stable.
+      </p>
+      <p v-else class="instances muted">No instances of this group found.</p>
+
+      <p
+        v-if="normalizeData.lockedInstanceCount > 0"
+        class="instances locked"
+      >
+        <strong>{{ normalizeData.lockedInstanceCount }}</strong> nested
+        instance{{ normalizeData.lockedInstanceCount === 1 ? '' : 's' }} will
+        be skipped — they live inside another component or auto-layout and
+        Figma doesn't allow overriding their position. Visuals there will
+        shift; fix the surrounding components manually.
+      </p>
+    </template>
+  </template>
 </template>
 
 <style scoped>
@@ -142,5 +321,135 @@ const defaultsKeys = computed(() => Object.keys(settings.value.defaults));
 .alias-banner strong {
   color: var(--figma-color-text);
   font-weight: 600;
+}
+
+.tab-strip {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--figma-color-border);
+}
+
+.tab {
+  height: 28px;
+  padding: 0 10px;
+  border: none;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--figma-color-text-secondary);
+  cursor: pointer;
+  position: relative;
+  transition: color 120ms ease;
+}
+
+.tab:hover {
+  color: var(--figma-color-text);
+}
+
+.tab.active {
+  color: var(--figma-color-text);
+}
+
+.tab.active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background-color: var(--figma-color-text);
+}
+
+.normalize-summary {
+  font-size: 11px;
+  color: var(--figma-color-text-secondary);
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
+.normalize-summary strong {
+  color: var(--figma-color-text);
+}
+
+.variants {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  margin-bottom: 12px;
+}
+
+.variants th,
+.variants td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--figma-color-border);
+}
+
+.variants th {
+  font-weight: 600;
+  color: var(--figma-color-text-secondary);
+  background-color: var(--figma-color-bg-secondary);
+}
+
+.variants tr.skipped {
+  color: var(--figma-color-text-secondary);
+  opacity: 0.7;
+}
+
+.instances {
+  font-size: 11px;
+  padding: 10px 12px;
+  background-color: var(--figma-color-bg-tertiary);
+  border-radius: 4px;
+  margin-bottom: 12px;
+}
+
+.instances.muted {
+  background-color: transparent;
+  color: var(--figma-color-text-secondary);
+  padding-left: 0;
+}
+
+.instances.locked {
+  background-color: var(--figma-color-bg-warning-tertiary);
+  color: var(--figma-color-text-warning);
+  border: 1px solid var(--figma-color-border-warning);
+}
+
+.instances.locked strong {
+  color: var(--figma-color-text-warning);
+}
+
+.normalize-loading {
+  font-size: 11px;
+  color: var(--figma-color-text-secondary);
+  padding: 16px 0;
+}
+
+.normalize-error {
+  padding: 10px 12px;
+  border: 1px solid var(--figma-color-border-danger);
+  background-color: var(--figma-color-bg-danger-tertiary);
+  color: var(--figma-color-text-danger);
+  border-radius: 4px;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.normalize-error p {
+  flex: 1;
+}
+
+.retry {
+  border: 1px solid var(--figma-color-border-danger);
+  background: transparent;
+  color: var(--figma-color-text-danger);
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
 }
 </style>

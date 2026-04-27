@@ -5,6 +5,8 @@ import { setComponentGroupSettings } from './settings/setComponentGroupSettings'
 import { setFrameSettings } from './settings/setFrameSettings';
 import { createExport } from './export/createExport';
 import { setColorGroupSettings } from './settings/setColorGroupSettings';
+import { prepareNormalize } from './normalize/prepareNormalize';
+import { applyNormalize } from './normalize/applyNormalize';
 
 figma.showUI(__html__, { width: 720, height: 400 });
 
@@ -14,6 +16,20 @@ figma.on('selectionchange', () =>
     data: await prepareExport(),
   }))
 );
+
+async function postNormalize(groupName: string): Promise<void> {
+  try {
+    figma.ui.postMessage({
+      type: 'normalize',
+      data: await prepareNormalize(groupName),
+    });
+  } catch (e: any) {
+    figma.ui.postMessage({
+      type: 'normalize:error',
+      data: { groupName, message: e.message },
+    });
+  }
+}
 
 figma.ui.onmessage = async (msg) => {
   const typeSplit = msg.type.split(':');
@@ -47,6 +63,29 @@ figma.ui.onmessage = async (msg) => {
         type: 'export',
         data: await createExport(),
       }));
+      break;
+
+    case 'prepare':
+      if (typeSplit[1] === 'normalize') {
+        await postNormalize(msg.data.groupName);
+      }
+      break;
+
+    case 'apply':
+      if (typeSplit[1] === 'normalize') {
+        try {
+          await applyNormalize(msg.data.groupName);
+        } catch (e: any) {
+          figma.ui.postMessage({
+            type: 'normalize:error',
+            data: { groupName: msg.data.groupName, message: e.message },
+          });
+
+          break;
+        }
+
+        await postNormalize(msg.data.groupName);
+      }
       break;
   }
 };

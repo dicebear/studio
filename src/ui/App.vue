@@ -25,6 +25,17 @@ async function handleMessage(event: MessageEvent) {
     case 'loaded':
       store.type = 'loaded';
       store.data = message.data;
+      store.normalize = {};
+      store.normalizeErrors = {};
+      break;
+
+    case 'normalize':
+      store.normalize[message.data.groupName] = message.data;
+      delete store.normalizeErrors[message.data.groupName];
+      break;
+
+    case 'normalize:error':
+      store.normalizeErrors[message.data.groupName] = message.data.message;
       break;
 
     case 'error':

@@ -1,14 +1,52 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import usePluginStore from '@/stores/plugin';
 import { postPluginMessage } from '@/utils/postPluginMessage';
+import { hasPendingChanges } from '@/utils/normalize';
 import LoadingScene from './LoadingScene.vue';
 import LoadedScene from './LoadedScene.vue';
 import ErrorScene from './ErrorScene.vue';
 
 const store = usePluginStore();
 
+const activeNormalizeGroup = computed(() => {
+  if (
+    store.type !== 'loaded' ||
+    store.activeStageKind !== 'component' ||
+    store.componentTab !== 'normalize'
+  ) {
+    return null;
+  }
+
+  const group = store.data?.components[store.activeStageName];
+
+  if (!group || group.extendsGroup) {
+    return null;
+  }
+
+  return store.activeStageName;
+});
+
+const normalizeData = computed(() => {
+  const name = activeNormalizeGroup.value;
+
+  return name ? store.normalize[name] : undefined;
+});
+
+const hasPendingNormalize = computed(() =>
+  normalizeData.value ? hasPendingChanges(normalizeData.value) : false,
+);
+
 function onExport() {
   postPluginMessage('export');
+}
+
+function onNormalize() {
+  if (activeNormalizeGroup.value) {
+    postPluginMessage('apply:normalize', {
+      groupName: activeNormalizeGroup.value,
+    });
+  }
 }
 </script>
 
@@ -20,6 +58,14 @@ function onExport() {
       <LoadingScene v-else />
     </div>
     <div class="bottom">
+      <Button
+        v-if="activeNormalizeGroup"
+        label="Normalize variants"
+        severity="secondary"
+        size="small"
+        :disabled="!hasPendingNormalize"
+        @click="onNormalize"
+      />
       <Button
         label="Export"
         size="small"
@@ -49,5 +95,6 @@ function onExport() {
   padding: 12px 16px;
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
 }
 </style>

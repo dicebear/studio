@@ -72,9 +72,30 @@ export type ExportData = {
   colors: ExportColorGroups;
 };
 
+export type NormalizeVariant = {
+  name: string;
+  currentWidth: number;
+  currentHeight: number;
+  contentWidth: number;
+  contentHeight: number;
+  skipReason?: 'auto-layout' | 'no-children';
+};
+
+export type NormalizeData = {
+  groupName: string;
+  targetWidth: number;
+  targetHeight: number;
+  willTranslate: { dx: number; dy: number };
+  variants: NormalizeVariant[];
+  instanceCount: number;
+  lockedInstanceCount: number;
+};
+
 export type PluginMessage =
   | { type: 'loading'; data?: { message?: string } }
   | { type: 'loaded'; data: ExportData }
+  | { type: 'normalize'; data: NormalizeData }
+  | { type: 'normalize:error'; data: { groupName: string; message: string } }
   | { type: 'error'; data: { message: string } }
   | {
       type: 'export';
