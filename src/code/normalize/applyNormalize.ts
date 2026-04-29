@@ -73,9 +73,15 @@ export async function applyNormalize(groupName: string): Promise<void> {
 
     for (const inst of instances) {
       if (dx !== 0 || dy !== 0) {
+        // Figma stores scale in width/height, not relativeTransform — combine
+        // both to map the component-local delta into parent space.
+        const { a, b, c, d } = inst.linear;
+        const parentDx = a * inst.scaleX * dx + c * inst.scaleY * dy;
+        const parentDy = b * inst.scaleX * dx + d * inst.scaleY * dy;
+
         try {
-          inst.node.x -= dx * inst.scaleX;
-          inst.node.y -= dy * inst.scaleY;
+          inst.node.x -= parentDx;
+          inst.node.y -= parentDy;
         } catch {
           // Defensive: Figma may still reject the assignment in edge cases.
         }
