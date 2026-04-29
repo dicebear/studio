@@ -1,17 +1,17 @@
 import { computeGroupPlan } from './computePlan';
 import { collectMatchingInstances } from './collectMatchingInstances';
-import { TOLERANCE } from './constants';
 import { loadGroupMap } from './loadGroupMap';
 
 // One pass aligns the group; a second pass detects convergence via the
 // dx/dy/needsResize early-exit. Higher counts only burn extra bounding-box reads.
 const MAX_ITERATIONS = 2;
+const TOLERANCE = 0.001;
 
-export async function applyNormalize(groupName: string): Promise<void> {
+export async function applyNormalize(groupName: string, precision: number): Promise<void> {
   const groupMap = await loadGroupMap(groupName);
 
   for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
-    const plan = computeGroupPlan(groupMap);
+    const plan = computeGroupPlan(groupMap, precision);
 
     if (plan.targetWidth === 0 && plan.targetHeight === 0) {
       return;

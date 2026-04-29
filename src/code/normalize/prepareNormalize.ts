@@ -3,9 +3,9 @@ import { collectMatchingInstances } from './collectMatchingInstances';
 import { loadGroupMap } from './loadGroupMap';
 import type { NormalizeData } from './types';
 
-export async function prepareNormalize(groupName: string): Promise<NormalizeData> {
+export async function prepareNormalize(groupName: string, precision: number): Promise<NormalizeData> {
   const groupMap = await loadGroupMap(groupName);
-  const plan = computeGroupPlan(groupMap);
+  const plan = computeGroupPlan(groupMap, precision);
   const { modifiable, lockedCount } = await collectMatchingInstances(plan.eligibleVariantIds);
 
   return {

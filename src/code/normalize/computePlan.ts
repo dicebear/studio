@@ -1,5 +1,5 @@
 import { findContentBoundingBox, type ContentBoundingBox } from '../queries/findContentBoundingBox';
-import { snap } from './constants';
+import { roundTo } from '../utils/roundTo';
 
 export type VariantPlan = {
   variant: ComponentNode;
@@ -18,7 +18,7 @@ export type GroupPlan = {
   eligibleVariantIds: Set<string>;
 };
 
-export function computeGroupPlan(groupMap: Map<string, ComponentNode>): GroupPlan {
+export function computeGroupPlan(groupMap: Map<string, ComponentNode>, precision: number): GroupPlan {
   const variants: VariantPlan[] = [];
   const eligibleVariantIds = new Set<string>();
 
@@ -80,10 +80,15 @@ export function computeGroupPlan(groupMap: Map<string, ComponentNode>): GroupPla
   // Children shift by `(-minCx, -minCy)` so the union of content positions
   // starts at (0, 0). Variant frames and existing instances shift in the
   // OPPOSITE direction so visible content stays at its original world coords.
+  // Round so resized variants and shifts land at the export's precision —
+  // otherwise `componentNode.width` would carry Figma's full float into JSON.
   return {
-    targetWidth: maxRight - minCx,
-    targetHeight: maxBottom - minCy,
-    willTranslate: { dx: snap(-minCx), dy: snap(-minCy) },
+    targetWidth: roundTo(maxRight - minCx, precision),
+    targetHeight: roundTo(maxBottom - minCy, precision),
+    willTranslate: {
+      dx: roundTo(-minCx, precision),
+      dy: roundTo(-minCy, precision),
+    },
     variants,
     eligibleVariantIds,
   };

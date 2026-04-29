@@ -3,6 +3,7 @@ import { prepareExport } from './export/prepareExport';
 import { processTask } from './utils/processTask';
 import { setComponentGroupSettings } from './settings/setComponentGroupSettings';
 import { setFrameSettings } from './settings/setFrameSettings';
+import { getFrameSettings } from './settings/getFrameSettings';
 import { createExport } from './export/createExport';
 import { setColorGroupSettings } from './settings/setColorGroupSettings';
 import { prepareNormalize } from './normalize/prepareNormalize';
@@ -17,11 +18,15 @@ figma.on('selectionchange', () =>
   }))
 );
 
-async function postNormalize(groupName: string): Promise<void> {
+function getNormalizePrecision(): number {
+  return getFrameSettings(getFrameSelection(), []).precision;
+}
+
+async function postNormalize(groupName: string, precision: number): Promise<void> {
   try {
     figma.ui.postMessage({
       type: 'normalize',
-      data: await prepareNormalize(groupName),
+      data: await prepareNormalize(groupName, precision),
     });
   } catch (e: any) {
     figma.ui.postMessage({
@@ -67,14 +72,16 @@ figma.ui.onmessage = async (msg) => {
 
     case 'prepare':
       if (typeSplit[1] === 'normalize') {
-        await postNormalize(msg.data.groupName);
+        await postNormalize(msg.data.groupName, getNormalizePrecision());
       }
       break;
 
     case 'apply':
       if (typeSplit[1] === 'normalize') {
+        const precision = getNormalizePrecision();
+
         try {
-          await applyNormalize(msg.data.groupName);
+          await applyNormalize(msg.data.groupName, precision);
         } catch (e: any) {
           figma.ui.postMessage({
             type: 'normalize:error',
@@ -84,7 +91,7 @@ figma.ui.onmessage = async (msg) => {
           break;
         }
 
-        await postNormalize(msg.data.groupName);
+        await postNormalize(msg.data.groupName, precision);
       }
       break;
   }

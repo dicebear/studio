@@ -1,13 +1,15 @@
 import { DefinitionColors, DefinitionComponentBase, DefinitionComponents, Export } from '../types';
 import { removeEmptyValuesFromObject } from '../utils/removeEmptyValuesFromObject';
 import { toRangeArray, toScaleArray } from '../utils/rangeValue';
+import { roundTo } from '../utils/roundTo';
 import { createTemplateString } from './createTemplateString';
 import { getLicenseAsText } from '../utils/getLicenseAsText';
 import { parse } from 'svgson';
 import { convertSvgsonToDefinition } from '../utils/convertSvgsonToDefinition';
 
 export async function createExportDefinition(exportData: Export) {
-  const size = ((await figma.getNodeByIdAsync(exportData.frame.id)) as FrameNode).width;
+  const precision = exportData.frame.settings.precision;
+  const size = roundTo(((await figma.getNodeByIdAsync(exportData.frame.id)) as FrameNode).width, precision);
   const components: DefinitionComponents = {};
   const colors: DefinitionColors = {};
 
@@ -54,8 +56,8 @@ export async function createExportDefinition(exportData: Export) {
       const componentContent = await createTemplateString(exportData, componentNode);
       const componentContentWithSvg = `<svg>${componentContent}</svg>`;
 
-      baseEntry.width = Math.max(baseEntry.width, componentNode.width);
-      baseEntry.height = Math.max(baseEntry.height, componentNode.height);
+      baseEntry.width = roundTo(Math.max(baseEntry.width, componentNode.width), precision);
+      baseEntry.height = roundTo(Math.max(baseEntry.height, componentNode.height), precision);
 
       baseEntry.variants[componentKey] = {
         elements: convertSvgsonToDefinition(await parse(componentContentWithSvg)).children ?? [],
