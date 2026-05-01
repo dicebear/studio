@@ -9,6 +9,7 @@ import Field from '../Field.vue';
 import FieldReset from '../FieldReset.vue';
 import RangeField from '../RangeField.vue';
 import ToggleGroup from '../ToggleGroup.vue';
+import WeightGroup from '../WeightGroup.vue';
 
 const props = defineProps<{ componentGroup: string }>();
 
@@ -115,9 +116,31 @@ function revealAliasInstances() {
 
 const defaultsKeys = computed(() => Object.keys(settings.value.defaults));
 
+const weightsKeys = computed(() => Object.keys(settings.value.weights));
+
+const hasNonDefaultWeights = computed(() =>
+  weightsKeys.value.some((k) => settings.value.weights[k] !== 1),
+);
+
+function resetWeights(): void {
+  for (const key of weightsKeys.value) {
+    settings.value.weights[key] = 1;
+  }
+}
+
 const tab = computed({
-  get: () => (extendsGroup.value ? 'settings' : store.componentTab),
-  set: (next: 'settings' | 'normalize') => {
+  get: () => {
+    if (extendsGroup.value) {
+      return 'settings';
+    }
+
+    if (store.componentTab === 'weights' && !isDefinition.value) {
+      return 'settings';
+    }
+
+    return store.componentTab;
+  },
+  set: (next: 'settings' | 'weights' | 'normalize') => {
     if (extendsGroup.value) {
       return;
     }
@@ -225,6 +248,15 @@ function onRetry() {
       Settings
     </button>
     <button
+      v-if="isDefinition"
+      type="button"
+      class="tab"
+      :class="{ active: tab === 'weights' }"
+      @click="tab = 'weights'"
+    >
+      Weights
+    </button>
+    <button
       type="button"
       class="tab"
       :class="{ active: tab === 'normalize' }"
@@ -303,6 +335,25 @@ function onRetry() {
     <Field v-if="!isDefinition && !extendsGroup" label="Defaults">
       <ToggleGroup :values="settings.defaults" :options="defaultsKeys" />
     </Field>
+  </template>
+
+  <template v-else-if="tab === 'weights'">
+    <p class="weights-summary">
+      Higher values make a variant more likely to be picked. Default
+      <strong>1</strong>; <strong>0</strong> means never selected unless every
+      variant is 0. Range 0–1,000,000.
+    </p>
+
+    <div class="field">
+      <div class="field-label">
+        <span class="field-label-text">Weights</span>
+        <FieldReset
+          v-if="hasNonDefaultWeights"
+          @click="resetWeights"
+        />
+      </div>
+      <WeightGroup :values="settings.weights" :options="weightsKeys" />
+    </div>
   </template>
 
   <template v-else>
@@ -509,14 +560,16 @@ function onRetry() {
   background-color: var(--figma-color-text);
 }
 
-.normalize-summary {
+.normalize-summary,
+.weights-summary {
   font-size: 11px;
   color: var(--figma-color-text-secondary);
   line-height: 1.5;
   margin-bottom: 12px;
 }
 
-.normalize-summary strong {
+.normalize-summary strong,
+.weights-summary strong {
   color: var(--figma-color-text);
 }
 

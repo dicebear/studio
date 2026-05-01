@@ -67,8 +67,11 @@ export async function createExportDefinition(exportData: Export) {
       baseEntry.width = roundTo(Math.max(baseEntry.width, componentNode.width), precision);
       baseEntry.height = roundTo(Math.max(baseEntry.height, componentNode.height), precision);
 
+      const weight = componentGroupValue.settings.weights[componentKey] ?? 1;
+
       baseEntry.variants[componentKey] = {
         elements: convertSvgsonToDefinition(await parse(componentContentWithSvg)).children ?? [],
+        weight: weight === 1 ? undefined : weight,
       };
     }
   }

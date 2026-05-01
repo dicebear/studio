@@ -84,4 +84,18 @@ export function sanitizeComponentSettings(settings: ComponentGroupSettings): voi
   assignIfChanged(settings, 'rotation', clampRange(settings.rotation, -360, 360));
   assignIfChanged(settings, 'translateX', clampRange(settings.translateX, -1000, 1000));
   assignIfChanged(settings, 'translateY', clampRange(settings.translateY, -1000, 1000));
+
+  const weights = settings.weights;
+
+  for (const key of Object.keys(weights)) {
+    const raw = weights[key];
+    const parsed = typeof raw === 'number' ? raw : parseFloat(String(raw));
+    const next = Number.isNaN(parsed)
+      ? 1
+      : Math.max(0, Math.min(1_000_000, parsed));
+
+    if (weights[key] !== next) {
+      weights[key] = next;
+    }
+  }
 }

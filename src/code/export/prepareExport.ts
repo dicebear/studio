@@ -219,6 +219,7 @@ function ensureMasterGroupRegistered(
     settings: {
       ...settings,
       defaults: {},
+      weights: {},
     },
     collection: {},
     width: 0,
@@ -235,6 +236,7 @@ function ensureMasterGroupRegistered(
     };
 
     componentGroup.settings.defaults[componentName] = settings.defaults[componentName] ?? true;
+    componentGroup.settings.weights[componentName] = settings.weights[componentName] ?? 1;
 
     pending.push(component);
   }

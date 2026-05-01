@@ -22,6 +22,7 @@ export type RangeValue = number | readonly [number, number] | null;
 
 export type ComponentGroupSettings = {
   defaults: Record<string, boolean>;
+  weights: Record<string, number>;
   probability: number | null;
   rotation: RangeValue;
   scale: RangeValue;
@@ -109,6 +110,7 @@ export type DefinitionComponentBase = {
   };
   variants: Record<string, {
     elements: DefinitionElement[];
+    weight?: number;
   }>;
 };
 
