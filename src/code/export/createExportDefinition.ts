@@ -1,4 +1,4 @@
-import { DefinitionColors, DefinitionComponentBase, DefinitionComponents, Export } from '../types';
+import { DefinitionColors, DefinitionComponentBase, DefinitionComponents, Export, ExportColor } from '../types';
 import { removeEmptyValuesFromObject } from '../utils/removeEmptyValuesFromObject';
 import { toRangeArray, toScaleArray } from '../utils/rangeValue';
 import { roundTo } from '../utils/roundTo';
@@ -7,6 +7,14 @@ import { getLicenseAsText } from '../utils/getLicenseAsText';
 import { parse } from 'svgson';
 import { convertSvgsonToDefinition } from '../utils/convertSvgsonToDefinition';
 
+const byCodepoint = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+const byEntryKey = ([a]: [string, unknown], [b]: [string, unknown]): number => byCodepoint(a, b);
+
+const toSortedHexValues = (collection: Record<string, ExportColor>): string[] =>
+  Object.entries(collection)
+    .sort(byEntryKey)
+    .map(([, v]) => `#${v.value}`);
+
 export async function createExportDefinition(exportData: Export) {
   const precision = exportData.frame.settings.precision;
   const size = roundTo(((await figma.getNodeByIdAsync(exportData.frame.id)) as FrameNode).width, precision);
@@ -14,7 +22,7 @@ export async function createExportDefinition(exportData: Export) {
   const colors: DefinitionColors = {};
 
   // Collect components
-  for (const [componentGroupKey, componentGroupValue] of Object.entries(exportData.components)) {
+  for (const [componentGroupKey, componentGroupValue] of Object.entries(exportData.components).sort(byEntryKey)) {
     const rotation = componentGroupValue.settings.rotation;
     const scale = componentGroupValue.settings.scale;
     const probability = componentGroupValue.settings.probability;
@@ -51,7 +59,7 @@ export async function createExportDefinition(exportData: Export) {
 
     components[componentGroupKey] = baseEntry;
 
-    for (const [componentKey, componentValue] of Object.entries(componentGroupValue.collection)) {
+    for (const [componentKey, componentValue] of Object.entries(componentGroupValue.collection).sort(byEntryKey)) {
       const componentNode = (await figma.getNodeByIdAsync(componentValue.id)) as ComponentNode;
       const componentContent = await createTemplateString(exportData, componentNode);
       const componentContentWithSvg = `<svg>${componentContent}</svg>`;
@@ -71,13 +79,13 @@ export async function createExportDefinition(exportData: Export) {
 
     if (colorGroup) {
       colors['background'] = {
-        values: Object.values(colorGroup.collection).map((v) => `#${v.value}`),
+        values: toSortedHexValues(colorGroup.collection),
       };
     }
   }
 
   // Collect colors
-  for (const [colorGroupKey, colorGroupValue] of Object.entries(exportData.colors)) {
+  for (const [colorGroupKey, colorGroupValue] of Object.entries(exportData.colors).sort(byEntryKey)) {
     if (!colorGroupValue.isUsedByComponents) {
       continue;
     }
@@ -94,12 +102,13 @@ export async function createExportDefinition(exportData: Export) {
 
           return false;
         })
-        .map(([key]) => key),
+        .map(([key]) => key)
+        .sort(byCodepoint),
       contrastTo:
         contrastTo === 'background' || (contrastTo && exportData.colors[contrastTo]?.isUsedByComponents)
           ? contrastTo
           : undefined,
-      values: Object.values(colorGroupValue.collection).map((v) => `#${v.value}`),
+      values: toSortedHexValues(colorGroupValue.collection),
     };
   }
 
