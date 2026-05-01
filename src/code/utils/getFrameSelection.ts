@@ -1,9 +1,15 @@
 export function getFrameSelection() {
   const { selection } = figma.currentPage;
 
-  if (selection.length !== 1 || selection[0].type !== 'FRAME' || selection[0].width !== selection[0].height) {
-    throw new Error('Please select a single frame with same width and height.');
+  let current: BaseNode | null = selection.length === 1 ? selection[0] : null;
+
+  while (current && current.type !== 'FRAME') {
+    current = current.parent;
   }
 
-  return selection[0];
+  if (!current || current.type !== 'FRAME' || current.width !== current.height) {
+    throw new Error('Please select a layer inside a square frame.');
+  }
+
+  return current;
 }
