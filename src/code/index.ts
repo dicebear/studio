@@ -22,6 +22,16 @@ function getNormalizePrecision(): number {
   return getFrameSettings(getFrameSelection(), []).precision;
 }
 
+function findOwnerPage(node: BaseNode): PageNode | null {
+  let current: BaseNode | null = node;
+
+  while (current && current.type !== 'PAGE') {
+    current = current.parent;
+  }
+
+  return current as PageNode | null;
+}
+
 async function postNormalize(groupName: string, precision: number): Promise<void> {
   try {
     figma.ui.postMessage({
@@ -92,6 +102,35 @@ figma.ui.onmessage = async (msg) => {
         }
 
         await postNormalize(msg.data.groupName, precision);
+      }
+      break;
+
+    case 'reveal':
+      if (typeSplit[1] === 'instances') {
+        const ids: string[] = msg.data?.ids ?? [];
+        const resolved = await Promise.all(ids.map((id) => figma.getNodeByIdAsync(id)));
+        const nodes = resolved.filter(
+          (n): n is SceneNode => !!n && n.type !== 'PAGE' && n.type !== 'DOCUMENT',
+        );
+
+        if (nodes.length === 0) {
+          break;
+        }
+
+        const targetPage = findOwnerPage(nodes[0]);
+
+        if (!targetPage) {
+          break;
+        }
+
+        if (figma.currentPage !== targetPage) {
+          await figma.setCurrentPageAsync(targetPage);
+        }
+
+        const onPage = nodes.filter((n) => findOwnerPage(n) === targetPage);
+
+        figma.currentPage.selection = onPage;
+        figma.viewport.scrollAndZoomIntoView(onPage);
       }
       break;
   }

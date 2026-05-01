@@ -52,6 +52,8 @@ export type ExportComponentGroup = {
   height: number;
   /** When set, this entry is an alias of the named source group. */
   extendsGroup?: string;
+  /** When set, the Figma node ids of the renamed instances that triggered this alias. */
+  aliasInstanceIds?: string[];
 };
 
 export type ExportColorGroup = {

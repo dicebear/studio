@@ -101,6 +101,18 @@ const usedByAliases = computed<string[]>(() => {
   return list.sort();
 });
 
+const aliasInstanceIds = computed<string[]>(
+  () => group.value.aliasInstanceIds ?? [],
+);
+
+function revealAliasInstances() {
+  if (aliasInstanceIds.value.length === 0) {
+    return;
+  }
+
+  postPluginMessage('reveal:instances', { ids: [...aliasInstanceIds.value] });
+}
+
 const defaultsKeys = computed(() => Object.keys(settings.value.defaults));
 
 const tab = computed({
@@ -172,9 +184,27 @@ function onRetry() {
 
 <template>
   <div v-if="extendsGroup" class="alias-banner">
-    Alias of <strong>{{ extendsGroup }}</strong>. Variants and dimensions are
-    inherited from the source. Override values to deviate; reset to inherit
-    again.
+    <p>
+      Alias of <strong>{{ extendsGroup }}</strong>. Variants and dimensions are
+      inherited from the source. Override values to deviate; reset to inherit
+      again.
+    </p>
+    <p>
+      This alias exists because at least one instance in Figma is renamed
+      to <strong>{{ componentGroup }}</strong>. To remove it, rename those
+      instances back to the <strong>{{ extendsGroup }}</strong> group or
+      revert the rename in Figma.
+    </p>
+    <button
+      v-if="aliasInstanceIds.length > 0"
+      type="button"
+      class="alias-banner-action"
+      @click="revealAliasInstances"
+    >
+      Show
+      {{ aliasInstanceIds.length }}
+      renamed instance{{ aliasInstanceIds.length === 1 ? '' : 's' }} in Figma
+    </button>
   </div>
 
   <div v-if="!extendsGroup && usedByAliases.length > 0" class="alias-banner">
@@ -411,9 +441,34 @@ function onRetry() {
   background-color: var(--figma-color-bg-secondary);
 }
 
+.alias-banner p {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.alias-banner > *:not(:first-child) {
+  margin-top: 6px;
+}
+
 .alias-banner strong {
   color: var(--figma-color-text);
   font-weight: 600;
+}
+
+.alias-banner-action {
+  height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--figma-color-border);
+  border-radius: 4px;
+  background-color: var(--figma-color-bg);
+  color: var(--figma-color-text);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.alias-banner-action:hover {
+  background-color: var(--figma-color-bg-hover);
 }
 
 .tab-strip {

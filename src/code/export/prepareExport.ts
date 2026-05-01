@@ -125,6 +125,10 @@ export async function prepareExport() {
       }
 
       if (existing) {
+        if (existing.aliasInstanceIds && !existing.aliasInstanceIds.includes(instance.id)) {
+          existing.aliasInstanceIds.push(instance.id);
+        }
+
         continue;
       }
 
@@ -143,6 +147,7 @@ export async function prepareExport() {
         width: sourceGroup.width,
         height: sourceGroup.height,
         extendsGroup: resolved.masterGroup,
+        aliasInstanceIds: [instance.id],
       };
     }
   }
