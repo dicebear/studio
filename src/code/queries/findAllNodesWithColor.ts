@@ -1,8 +1,11 @@
 import { getColorsByNode } from '../utils/getColorsByNode';
-import { NODE_TYPES_WITH_FILL } from '../utils/nodeTypes';
 
 export async function findAllNodesWithColor(node: ChildrenMixin): Promise<SceneNode[]> {
-  const candidates = node.findAllWithCriteria({ types: NODE_TYPES_WITH_FILL });
+  // The type-list optimization in `findAllWithCriteria` misses nodes whose
+  // type is not in our static list (e.g. flattened boolean operations on
+  // some files that retain a `fillStyleId`). The runtime `in` check matches
+  // every node Figma actually exposes the property on, regardless of type.
+  const candidates = node.findAll((v) => 'fillStyleId' in v || 'strokeStyleId' in v) as SceneNode[];
 
   if (candidates.length === 0) {
     return [];

@@ -8,7 +8,6 @@ import { getColorGroupSettings } from '../settings/getColorGroupSettings';
 import { getColorsByNode } from '../utils/getColorsByNode';
 import { getNameParts } from '../utils/getNameParts';
 import { isSupportedComponent } from '../utils/isSupportedComponent';
-import { NODE_TYPES_WITH_FILL } from '../utils/nodeTypes';
 import { resolveComponentName } from '../utils/resolveComponentName';
 import { useDefinitionFile } from '../utils/useDefinitionFile';
 
@@ -88,7 +87,13 @@ async function scanItem(
   visitedGroups: Set<string>,
   pending: ChildrenMixin[],
 ): Promise<void> {
-  const candidates = item.findAllWithCriteria({ types: NODE_TYPES_WITH_FILL });
+  // The runtime `in` check matches every node Figma exposes the property on
+  // (incl. flattened booleans whose type isn't covered by a static list).
+  // INSTANCE nodes also satisfy this check, so a single walk covers both
+  // color tracking and instance/alias resolution.
+  const candidates = item.findAll(
+    (v) => 'fillStyleId' in v || 'strokeStyleId' in v,
+  ) as SceneNode[];
 
   if (candidates.length === 0) {
     return;
