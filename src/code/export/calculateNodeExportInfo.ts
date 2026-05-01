@@ -1,6 +1,5 @@
 import { findAllInstanceNodes } from '../queries/findAllInstanceNodes';
 import { findAllNodesWithColor } from '../queries/findAllNodesWithColor';
-import { fastFindAll } from '../utils/fastFindAll';
 import { getColorsByNode } from '../utils/getColorsByNode';
 import { getNameParts } from '../utils/getNameParts';
 import { readNodeExportInfo } from '../utils/readNodeExportInfo';
@@ -30,9 +29,7 @@ export async function calculateNodeExportInfo(
 
     const allInstanceNodes = await findAllInstanceNodes(nodeClone);
 
-    for (const instanceNode of allInstanceNodes) {
-      const mainComponent = (await instanceNode.getMainComponentAsync())!;
-
+    for (const { instance: instanceNode, mainComponent } of allInstanceNodes) {
       const nodeExportInfo = readNodeExportInfo(instanceNode);
 
       nodeExportInfo.matrix = {
@@ -66,7 +63,11 @@ export async function calculateNodeExportInfo(
 
     // Figma flat boolean nodes when exporting. In doing so, ids and their information will be lost.
     // That's why we do it ourselves here, so Figma can't delete any information.
-    for (const boNode of fastFindAll(nodeClone.children, (node) => node.type == 'BOOLEAN_OPERATION' && node.visible)) {
+    const booleanNodes = nodeClone
+      .findAllWithCriteria({ types: ['BOOLEAN_OPERATION'] })
+      .filter((n) => n.visible);
+
+    for (const boNode of booleanNodes) {
       try {
         const wasMask = 'isMask' in boNode && boNode.isMask;
         const newNode = figma.flatten([boNode], boNode.parent!, boNode.parent!.children.indexOf(boNode as SceneNode));

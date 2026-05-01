@@ -1,4 +1,3 @@
-import { fastFindAll } from '../utils/fastFindAll';
 import { canModifyPosition } from './canModifyPosition';
 
 export type ModifiableInstance = {
@@ -14,10 +13,7 @@ export type ModifiableInstance = {
 export async function collectMatchingInstances(
   eligibleVariantIds: Set<string>,
 ): Promise<{ modifiable: ModifiableInstance[]; lockedCount: number }> {
-  const allInstances = fastFindAll(
-    figma.root.children,
-    (node) => node.type === 'INSTANCE',
-  ) as InstanceNode[];
+  const allInstances = figma.root.findAllWithCriteria({ types: ['INSTANCE'] });
 
   const mains = await Promise.all(allInstances.map((i) => i.getMainComponentAsync()));
 

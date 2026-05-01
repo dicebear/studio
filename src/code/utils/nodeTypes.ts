@@ -1,0 +1,14 @@
+export const NODE_TYPES_WITH_FILL: NodeType[] = [
+  'BOOLEAN_OPERATION',
+  'COMPONENT',
+  'COMPONENT_SET',
+  'ELLIPSE',
+  'FRAME',
+  'INSTANCE',
+  'LINE',
+  'POLYGON',
+  'RECTANGLE',
+  'STAR',
+  'TEXT',
+  'VECTOR',
+];

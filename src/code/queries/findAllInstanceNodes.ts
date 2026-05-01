@@ -1,14 +1,30 @@
-import { fastFindAllAsync } from '../utils/fastFindAll';
 import { isSupportedComponent } from '../utils/isSupportedComponent';
 
-export async function findAllInstanceNodes(node?: ChildrenMixin): Promise<InstanceNode[]> {
-  return (await fastFindAllAsync((node ?? figma.root).children, async (v) => {
-    if (v === undefined || v.type !== 'INSTANCE') {
-      return false;
+export type InstanceMatch = {
+  instance: InstanceNode;
+  mainComponent: ComponentNode;
+};
+
+export async function findAllInstanceNodes(node: ChildrenMixin): Promise<InstanceMatch[]> {
+  const instances = node.findAllWithCriteria({ types: ['INSTANCE'] });
+
+  if (instances.length === 0) {
+    return [];
+  }
+
+  const mainComponents = await Promise.all(instances.map((i) => i.getMainComponentAsync()));
+
+  const result: InstanceMatch[] = [];
+
+  for (let i = 0; i < instances.length; i++) {
+    const mainComponent = mainComponents[i];
+
+    if (mainComponent === null || !isSupportedComponent(mainComponent)) {
+      continue;
     }
 
-    const mainComponent = await v.getMainComponentAsync();
+    result.push({ instance: instances[i], mainComponent });
+  }
 
-    return null !== mainComponent && isSupportedComponent(mainComponent);
-  })) as InstanceNode[];
+  return result;
 }

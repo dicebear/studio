@@ -1,5 +1,5 @@
 import { getFrameSelection } from './utils/getFrameSelection';
-import { prepareExport } from './export/prepareExport';
+import { getExport, invalidateExportCache } from './export/exportCache';
 import { processTask } from './utils/processTask';
 import { setComponentGroupSettings } from './settings/setComponentGroupSettings';
 import { setFrameSettings } from './settings/setFrameSettings';
@@ -11,10 +11,12 @@ import { applyNormalize } from './normalize/applyNormalize';
 
 figma.showUI(__html__, { width: 720, height: 400 });
 
+figma.skipInvisibleInstanceChildren = true;
+
 figma.on('selectionchange', () =>
   processTask(async () => ({
     type: 'loaded',
-    data: await prepareExport(),
+    data: await getExport(),
   }))
 );
 
@@ -53,7 +55,7 @@ figma.ui.onmessage = async (msg) => {
     case 'init':
       processTask(async () => ({
         type: 'loaded',
-        data: await prepareExport(),
+        data: await getExport(),
       }));
       break;
 
@@ -61,14 +63,17 @@ figma.ui.onmessage = async (msg) => {
       switch (typeSplit[1]) {
         case 'frame':
           setFrameSettings(getFrameSelection(), msg.data);
+          invalidateExportCache();
           break;
 
         case 'components':
           setComponentGroupSettings(getFrameSelection(), typeSplit[2], msg.data);
+          invalidateExportCache();
           break;
 
         case 'colors':
           setColorGroupSettings(getFrameSelection(), typeSplit[2], msg.data);
+          invalidateExportCache();
           break;
       }
       break;

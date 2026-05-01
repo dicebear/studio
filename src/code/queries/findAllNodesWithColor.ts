@@ -1,15 +1,20 @@
 import { getColorsByNode } from '../utils/getColorsByNode';
+import { NODE_TYPES_WITH_FILL } from '../utils/nodeTypes';
 
-export async function findAllNodesWithColor(node?: ChildrenMixin) {
-  const nodes = (node ?? figma.root).findAll((v) => 'fillStyleId' in v || 'strokeStyleId' in v);
+export async function findAllNodesWithColor(node: ChildrenMixin): Promise<SceneNode[]> {
+  const candidates = node.findAllWithCriteria({ types: NODE_TYPES_WITH_FILL });
 
-  let result: (SceneNode | PageNode)[] = [];
+  if (candidates.length === 0) {
+    return [];
+  }
 
-  for (let v of nodes) {
-    const colors = await getColorsByNode(v);
+  const colorsByCandidate = await Promise.all(candidates.map((v) => getColorsByNode(v)));
 
-    if (colors.size > 0) {
-      result.push(v);
+  const result: SceneNode[] = [];
+
+  for (let i = 0; i < candidates.length; i++) {
+    if (colorsByCandidate[i].size > 0) {
+      result.push(candidates[i]);
     }
   }
 
