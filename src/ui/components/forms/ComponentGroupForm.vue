@@ -4,6 +4,7 @@ import usePluginStore from '@/stores/plugin';
 import { useDefinitionFile } from '@/utils/useDefinitionFile';
 import { postPluginMessage } from '@/utils/postPluginMessage';
 import { isClose, isVariantAligned } from '@/utils/normalize';
+import type { RangeValue } from '@/types';
 import Field from '../Field.vue';
 import FieldReset from '../FieldReset.vue';
 import RangeField from '../RangeField.vue';
@@ -27,11 +28,77 @@ function formatNumber(value: number): string {
   return (+value.toFixed(precision.value)).toString();
 }
 
+const parentSettings = computed(() =>
+  extendsGroup.value
+    ? store.data!.components[extendsGroup.value]?.settings ?? null
+    : null,
+);
+
+function rangeDefaults(value: RangeValue | undefined, base: number): {
+  single: number;
+  range?: readonly [number, number];
+} {
+  if (typeof value === 'number') {
+    return { single: value };
+  }
+
+  if (Array.isArray(value) && value.length === 2) {
+    return { single: value[0], range: [value[0], value[1]] };
+  }
+
+  return { single: base, range: [base, base] };
+}
+
+const inheritedProbability = computed(() => {
+  const p = parentSettings.value?.probability;
+
+  return typeof p === 'number' ? p : 100;
+});
+
+const inheritedRotation = computed(() =>
+  rangeDefaults(parentSettings.value?.rotation, 0),
+);
+
+const inheritedTranslateX = computed(() =>
+  rangeDefaults(parentSettings.value?.translateX, 0),
+);
+
+const inheritedTranslateY = computed(() =>
+  rangeDefaults(parentSettings.value?.translateY, 0),
+);
+
+const inheritedScale = computed(() =>
+  rangeDefaults(parentSettings.value?.scale, 1),
+);
+
 const probability = computed<number>({
-  get: () => (typeof settings.value.probability === 'number' ? settings.value.probability : 100),
+  get: () =>
+    typeof settings.value.probability === 'number'
+      ? settings.value.probability
+      : inheritedProbability.value,
   set: (val: number) => {
     settings.value.probability = val;
   },
+});
+
+const probabilityInherited = computed(
+  () => !!extendsGroup.value && settings.value.probability === null,
+);
+
+const usedByAliases = computed<string[]>(() => {
+  if (extendsGroup.value) {
+    return [];
+  }
+
+  const list: string[] = [];
+
+  for (const [name, g] of Object.entries(store.data!.components)) {
+    if (g.extendsGroup === props.componentGroup) {
+      list.push(name);
+    }
+  }
+
+  return list.sort();
 });
 
 const defaultsKeys = computed(() => Object.keys(settings.value.defaults));
@@ -106,7 +173,16 @@ function onRetry() {
 <template>
   <div v-if="extendsGroup" class="alias-banner">
     Alias of <strong>{{ extendsGroup }}</strong>. Variants and dimensions are
-    inherited from the source.
+    inherited from the source. Override values to deviate; reset to inherit
+    again.
+  </div>
+
+  <div v-if="!extendsGroup && usedByAliases.length > 0" class="alias-banner">
+    Used by
+    <template v-for="(name, i) in usedByAliases" :key="name"
+      ><strong>{{ name }}</strong
+      ><template v-if="i < usedByAliases.length - 1">, </template></template
+    >. Changes propagate unless the alias overrides.
   </div>
 
   <div v-if="!extendsGroup" class="tab-strip">
@@ -136,6 +212,7 @@ function onRetry() {
           v-if="settings.probability !== null"
           @click="settings.probability = null"
         />
+        <span v-if="probabilityInherited" class="field-inherited">inherited</span>
         <span class="field-value">{{ probability }}%</span>
       </div>
       <Slider v-model="probability" :min="0" :max="100" :step="1" />
@@ -149,8 +226,9 @@ function onRetry() {
       :max="360"
       :step="1"
       unit="°"
-      :default-single="0"
-      :default-range="[0, 0]"
+      :default-single="inheritedRotation.single"
+      :default-range="inheritedRotation.range"
+      :inherited="!!extendsGroup"
     />
 
     <RangeField
@@ -161,8 +239,9 @@ function onRetry() {
       :max="1000"
       :step="1"
       unit="%"
-      :default-single="0"
-      :default-range="[0, 0]"
+      :default-single="inheritedTranslateX.single"
+      :default-range="inheritedTranslateX.range"
+      :inherited="!!extendsGroup"
     />
 
     <RangeField
@@ -173,8 +252,9 @@ function onRetry() {
       :max="1000"
       :step="1"
       unit="%"
-      :default-single="0"
-      :default-range="[0, 0]"
+      :default-single="inheritedTranslateY.single"
+      :default-range="inheritedTranslateY.range"
+      :inherited="!!extendsGroup"
     />
 
     <RangeField
@@ -185,8 +265,9 @@ function onRetry() {
       :min="0"
       :max="10"
       :step="0.01"
-      :default-single="1"
-      :default-range="[1, 1]"
+      :default-single="inheritedScale.single"
+      :default-range="inheritedScale.range"
+      :inherited="!!extendsGroup"
     />
 
     <Field v-if="!isDefinition && !extendsGroup" label="Defaults">
@@ -306,6 +387,18 @@ function onRetry() {
   margin-left: auto;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+}
+
+.field-inherited {
+  margin-left: auto;
+  font-size: 11px;
+  font-style: italic;
+  font-weight: 400;
+  color: var(--figma-color-text-secondary);
+}
+
+.field-inherited + .field-value {
+  margin-left: 6px;
 }
 
 .alias-banner {

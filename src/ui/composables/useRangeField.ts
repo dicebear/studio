@@ -54,12 +54,17 @@ export function useRangeField<T extends object>(target: T) {
     }
   }
 
-  function singleComputed(key: keyof T & string, fallback: number) {
+  function singleComputed(
+    key: keyof T & string,
+    fallback: number | (() => number),
+  ) {
+    const resolve = typeof fallback === 'function' ? fallback : () => fallback;
+
     return computed<number>({
       get: () => {
         const val = read(key);
 
-        return typeof val === 'number' ? val : fallback;
+        return typeof val === 'number' ? val : resolve();
       },
       set: (val: number) => {
         write(key, val);
@@ -69,8 +74,13 @@ export function useRangeField<T extends object>(target: T) {
 
   function rangeComputed(
     key: keyof T & string,
-    fallback: number | readonly number[],
+    fallback:
+      | number
+      | readonly number[]
+      | (() => number | readonly number[]),
   ) {
+    const resolve = typeof fallback === 'function' ? fallback : () => fallback;
+
     return computed<[number, number]>({
       get: () => {
         const val = read(key);
@@ -83,13 +93,15 @@ export function useRangeField<T extends object>(target: T) {
           return [val, val] as [number, number];
         }
 
-        if (Array.isArray(fallback) && fallback.length === 2) {
-          return [fallback[0], fallback[1]] as [number, number];
+        const fb = resolve();
+
+        if (Array.isArray(fb) && fb.length === 2) {
+          return [fb[0], fb[1]] as [number, number];
         }
 
-        const fb = typeof fallback === 'number' ? fallback : 0;
+        const single = typeof fb === 'number' ? fb : 0;
 
-        return [fb, fb] as [number, number];
+        return [single, single] as [number, number];
       },
       set: (val: [number, number]) => {
         write(key, [val[0], val[1]]);

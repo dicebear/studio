@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, watch } from 'vue';
 import { ArrowLeftRight } from '@lucide/vue';
 import { useRangeField } from '../composables/useRangeField';
 import type { ComponentGroupSettings, RangeValue } from '../types';
@@ -22,9 +22,11 @@ const props = withDefaults(
     unit?: string;
     defaultSingle: number;
     defaultRange?: readonly number[];
+    inherited?: boolean;
   }>(),
   {
     unit: '',
+    inherited: false,
   },
 );
 
@@ -37,16 +39,26 @@ const {
   rangeComputed,
 } = useRangeField(props.target);
 
-const initialValue = props.target[props.optionKey];
+watch(
+  () => props.defaultRange?.length === 2,
+  (hasDefaultRange) => {
+    if (props.target[props.optionKey] !== null) {
+      return;
+    }
 
-if (props.defaultRange?.length === 2 && typeof initialValue !== 'number') {
-  rangeMode[props.optionKey] = true;
-}
+    if (hasDefaultRange) {
+      rangeMode[props.optionKey] = true;
+    } else {
+      delete rangeMode[props.optionKey];
+    }
+  },
+  { immediate: true },
+);
 
-const singleVal = singleComputed(props.optionKey, props.defaultSingle);
+const singleVal = singleComputed(props.optionKey, () => props.defaultSingle);
 const rangeVal = rangeComputed(
   props.optionKey,
-  props.defaultRange ?? props.defaultSingle,
+  () => props.defaultRange ?? props.defaultSingle,
 );
 
 const displayRange = computed<[number, number]>(() => {
@@ -54,6 +66,10 @@ const displayRange = computed<[number, number]>(() => {
 
   return [Math.min(a, b), Math.max(a, b)];
 });
+
+const showInheritedHint = computed(
+  () => props.inherited && props.target[props.optionKey] === null,
+);
 </script>
 
 <template>
@@ -73,6 +89,7 @@ const displayRange = computed<[number, number]>(() => {
         v-if="target[optionKey] !== null"
         @click="resetRangeField(optionKey, defaultRange)"
       />
+      <span v-if="showInheritedHint" class="field-inherited">inherited</span>
       <span v-if="isRangeMode(optionKey)" class="field-value">
         {{ displayRange[0] }}{{ unit }} — {{ displayRange[1] }}{{ unit }}
       </span>
@@ -123,6 +140,18 @@ const displayRange = computed<[number, number]>(() => {
   margin-left: auto;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+}
+
+.field-inherited {
+  margin-left: auto;
+  font-size: 11px;
+  font-style: italic;
+  font-weight: 400;
+  color: var(--figma-color-text-secondary);
+}
+
+.field-inherited + .field-value {
+  margin-left: 6px;
 }
 
 .field-toggle {
