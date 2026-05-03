@@ -23,26 +23,19 @@ export async function createExportDefinition(exportData: Export) {
 
   // Collect components
   for (const [componentGroupKey, componentGroupValue] of Object.entries(exportData.components).sort(byEntryKey)) {
+    if (componentGroupValue.extendsGroup) {
+      components[componentGroupKey] = {
+        extends: componentGroupValue.extendsGroup,
+      };
+
+      continue;
+    }
+
     const rotation = componentGroupValue.settings.rotation;
     const scale = componentGroupValue.settings.scale;
     const probability = componentGroupValue.settings.probability;
     const translateX = componentGroupValue.settings.translateX;
     const translateY = componentGroupValue.settings.translateY;
-
-    if (componentGroupValue.extendsGroup) {
-      components[componentGroupKey] = {
-        extends: componentGroupValue.extendsGroup,
-        rotate: toRangeArray(rotation),
-        scale: toScaleArray(scale),
-        probability: typeof probability === 'number' ? probability : undefined,
-        translate: {
-          x: toRangeArray(translateX),
-          y: toRangeArray(translateY),
-        },
-      };
-
-      continue;
-    }
 
     const baseEntry: DefinitionComponentBase = {
       width: 0,

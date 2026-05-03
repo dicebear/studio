@@ -4,7 +4,6 @@ import usePluginStore from '@/stores/plugin';
 import { useDefinitionFile } from '@/utils/useDefinitionFile';
 import { postPluginMessage } from '@/utils/postPluginMessage';
 import { isClose, isVariantAligned } from '@/utils/normalize';
-import type { RangeValue } from '@/types';
 import Field from '../Field.vue';
 import FieldReset from '../FieldReset.vue';
 import RangeField from '../RangeField.vue';
@@ -29,68 +28,17 @@ function formatNumber(value: number): string {
   return (+value.toFixed(precision.value)).toString();
 }
 
-const parentSettings = computed(() =>
-  extendsGroup.value
-    ? store.data!.components[extendsGroup.value]?.settings ?? null
-    : null,
-);
-
-function rangeDefaults(value: RangeValue | undefined, base: number): {
-  single: number;
-  range?: readonly [number, number];
-} {
-  if (typeof value === 'number') {
-    return { single: value };
-  }
-
-  if (Array.isArray(value) && value.length === 2) {
-    return { single: value[0], range: [value[0], value[1]] };
-  }
-
-  return { single: base, range: [base, base] };
-}
-
-const inheritedProbability = computed(() => {
-  const p = parentSettings.value?.probability;
-
-  return typeof p === 'number' ? p : 100;
-});
-
-const inheritedRotation = computed(() =>
-  rangeDefaults(parentSettings.value?.rotation, 0),
-);
-
-const inheritedTranslateX = computed(() =>
-  rangeDefaults(parentSettings.value?.translateX, 0),
-);
-
-const inheritedTranslateY = computed(() =>
-  rangeDefaults(parentSettings.value?.translateY, 0),
-);
-
-const inheritedScale = computed(() =>
-  rangeDefaults(parentSettings.value?.scale, 1),
-);
-
 const probability = computed<number>({
   get: () =>
     typeof settings.value.probability === 'number'
       ? settings.value.probability
-      : inheritedProbability.value,
+      : 100,
   set: (val: number) => {
     settings.value.probability = val;
   },
 });
 
-const probabilityInherited = computed(
-  () => !!extendsGroup.value && settings.value.probability === null,
-);
-
 const usedByAliases = computed<string[]>(() => {
-  if (extendsGroup.value) {
-    return [];
-  }
-
   const list: string[] = [];
 
   for (const [name, g] of Object.entries(store.data!.components)) {
@@ -130,10 +78,6 @@ function resetWeights(): void {
 
 const tab = computed({
   get: () => {
-    if (extendsGroup.value) {
-      return 'settings';
-    }
-
     if (store.componentTab === 'weights' && !isDefinition.value) {
       return 'settings';
     }
@@ -141,10 +85,6 @@ const tab = computed({
     return store.componentTab;
   },
   set: (next: 'settings' | 'weights' | 'normalize') => {
-    if (extendsGroup.value) {
-      return;
-    }
-
     store.componentTab = next;
   },
 });
@@ -208,9 +148,8 @@ function onRetry() {
 <template>
   <div v-if="extendsGroup" class="alias-banner">
     <p>
-      Alias of <strong>{{ extendsGroup }}</strong>. Variants and dimensions are
-      inherited from the source. Override values to deviate; reset to inherit
-      again.
+      Alias of <strong>{{ extendsGroup }}</strong>. Variants, dimensions, and
+      transforms are inherited from the source — aliases have no own settings.
     </p>
     <p>
       This alias exists because at least one instance in Figma is renamed
@@ -230,213 +169,206 @@ function onRetry() {
     </button>
   </div>
 
-  <div v-if="!extendsGroup && usedByAliases.length > 0" class="alias-banner">
-    Used by
-    <template v-for="(name, i) in usedByAliases" :key="name"
-      ><strong>{{ name }}</strong
-      ><template v-if="i < usedByAliases.length - 1">, </template></template
-    >. Changes propagate unless the alias overrides.
-  </div>
-
-  <div v-if="!extendsGroup" class="tab-strip">
-    <button
-      type="button"
-      class="tab"
-      :class="{ active: tab === 'settings' }"
-      @click="tab = 'settings'"
-    >
-      Settings
-    </button>
-    <button
-      v-if="isDefinition"
-      type="button"
-      class="tab"
-      :class="{ active: tab === 'weights' }"
-      @click="tab = 'weights'"
-    >
-      Weights
-    </button>
-    <button
-      type="button"
-      class="tab"
-      :class="{ active: tab === 'normalize' }"
-      @click="tab = 'normalize'"
-    >
-      Normalize
-    </button>
-  </div>
-
-  <template v-if="extendsGroup || tab === 'settings'">
-    <div class="field">
-      <div class="field-label">
-        <span class="field-label-text">Probability (in percent)</span>
-        <FieldReset
-          v-if="settings.probability !== null"
-          @click="settings.probability = null"
-        />
-        <span v-if="probabilityInherited" class="field-inherited">inherited</span>
-        <span class="field-value">{{ probability }}%</span>
-      </div>
-      <Slider v-model="probability" :min="0" :max="100" :step="1" />
-    </div>
-
-    <RangeField
-      label="Rotation (in deg)"
-      option-key="rotation"
-      :target="settings"
-      :min="-360"
-      :max="360"
-      :step="1"
-      unit="°"
-      :default-single="inheritedRotation.single"
-      :default-range="inheritedRotation.range"
-      :inherited="!!extendsGroup"
-    />
-
-    <RangeField
-      label="Translate X (in %)"
-      option-key="translateX"
-      :target="settings"
-      :min="-1000"
-      :max="1000"
-      :step="1"
-      unit="%"
-      :default-single="inheritedTranslateX.single"
-      :default-range="inheritedTranslateX.range"
-      :inherited="!!extendsGroup"
-    />
-
-    <RangeField
-      label="Translate Y (in %)"
-      option-key="translateY"
-      :target="settings"
-      :min="-1000"
-      :max="1000"
-      :step="1"
-      unit="%"
-      :default-single="inheritedTranslateY.single"
-      :default-range="inheritedTranslateY.range"
-      :inherited="!!extendsGroup"
-    />
-
-    <RangeField
-      v-if="isDefinition"
-      label="Scale"
-      option-key="scale"
-      :target="settings"
-      :min="0"
-      :max="10"
-      :step="0.01"
-      :default-single="inheritedScale.single"
-      :default-range="inheritedScale.range"
-      :inherited="!!extendsGroup"
-    />
-
-    <Field v-if="!isDefinition && !extendsGroup" label="Defaults">
-      <ToggleGroup :values="settings.defaults" :options="defaultsKeys" />
-    </Field>
-  </template>
-
-  <template v-else-if="tab === 'weights'">
-    <p class="weights-summary">
-      Higher values make a variant more likely to be picked. Default
-      <strong>1</strong>; <strong>0</strong> means never selected unless every
-      variant is 0. Range 0–1,000,000.
-    </p>
-
-    <div class="field">
-      <div class="field-label">
-        <span class="field-label-text">Weights</span>
-        <FieldReset
-          v-if="hasNonDefaultWeights"
-          @click="resetWeights"
-        />
-      </div>
-      <WeightGroup :values="settings.weights" :options="weightsKeys" />
-    </div>
-  </template>
-
   <template v-else>
-    <div v-if="normalizeError" class="normalize-error">
-      <p>{{ normalizeError }}</p>
-      <button type="button" class="retry" @click="onRetry">Retry</button>
+    <div v-if="usedByAliases.length > 0" class="alias-banner">
+      Used by
+      <template v-for="(name, i) in usedByAliases" :key="name"
+        ><strong>{{ name }}</strong
+        ><template v-if="i < usedByAliases.length - 1">, </template></template
+      >. Changes propagate to those aliases.
     </div>
 
-    <div v-else-if="!normalizeData" class="normalize-loading">
-      Loading variants…
+    <div class="tab-strip">
+      <button
+        type="button"
+        class="tab"
+        :class="{ active: tab === 'settings' }"
+        @click="tab = 'settings'"
+      >
+        Settings
+      </button>
+      <button
+        v-if="isDefinition"
+        type="button"
+        class="tab"
+        :class="{ active: tab === 'weights' }"
+        @click="tab = 'weights'"
+      >
+        Weights
+      </button>
+      <button
+        type="button"
+        class="tab"
+        :class="{ active: tab === 'normalize' }"
+        @click="tab = 'normalize'"
+      >
+        Normalize
+      </button>
     </div>
+
+    <template v-if="tab === 'settings'">
+      <div class="field">
+        <div class="field-label">
+          <span class="field-label-text">Probability (in percent)</span>
+          <FieldReset
+            v-if="settings.probability !== null"
+            @click="settings.probability = null"
+          />
+          <span class="field-value">{{ probability }}%</span>
+        </div>
+        <Slider v-model="probability" :min="0" :max="100" :step="1" />
+      </div>
+
+      <RangeField
+        label="Rotation (in deg)"
+        option-key="rotation"
+        :target="settings"
+        :min="-360"
+        :max="360"
+        :step="1"
+        unit="°"
+        :default-single="0"
+      />
+
+      <RangeField
+        label="Translate X (in %)"
+        option-key="translateX"
+        :target="settings"
+        :min="-1000"
+        :max="1000"
+        :step="1"
+        unit="%"
+        :default-single="0"
+      />
+
+      <RangeField
+        label="Translate Y (in %)"
+        option-key="translateY"
+        :target="settings"
+        :min="-1000"
+        :max="1000"
+        :step="1"
+        unit="%"
+        :default-single="0"
+      />
+
+      <RangeField
+        v-if="isDefinition"
+        label="Scale"
+        option-key="scale"
+        :target="settings"
+        :min="0"
+        :max="10"
+        :step="0.01"
+        :default-single="1"
+      />
+
+      <Field v-if="!isDefinition" label="Defaults">
+        <ToggleGroup :values="settings.defaults" :options="defaultsKeys" />
+      </Field>
+    </template>
+
+    <template v-else-if="tab === 'weights'">
+      <p class="weights-summary">
+        Higher values make a variant more likely to be picked. Default
+        <strong>1</strong>; <strong>0</strong> means never selected unless every
+        variant is 0. Range 0–1,000,000.
+      </p>
+
+      <div class="field">
+        <div class="field-label">
+          <span class="field-label-text">Weights</span>
+          <FieldReset
+            v-if="hasNonDefaultWeights"
+            @click="resetWeights"
+          />
+        </div>
+        <WeightGroup :values="settings.weights" :options="weightsKeys" />
+      </div>
+    </template>
 
     <template v-else>
-      <p class="normalize-summary">
-        Target frame size:
-        <strong>
-          {{ formatNumber(normalizeData.targetWidth) }} ×
-          {{ formatNumber(normalizeData.targetHeight) }}
-        </strong>
-        — content-aware trim, instances are repositioned automatically so the
-        visual stays put.
-      </p>
-      <p v-if="groupTranslateActive" class="normalize-summary">
-        All children shift by
-        <strong>
-          {{ formatNumber(normalizeData.willTranslate.dx) }},
-          {{ formatNumber(normalizeData.willTranslate.dy) }}
-        </strong>; frames and instances shift in the opposite direction.
-      </p>
+      <div v-if="normalizeError" class="normalize-error">
+        <p>{{ normalizeError }}</p>
+        <button type="button" class="retry" @click="onRetry">Retry</button>
+      </div>
 
-      <table class="variants">
-        <thead>
-          <tr>
-            <th>Variant</th>
-            <th>Frame</th>
-            <th>Content</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="v in normalizeData.variants"
-            :key="v.name"
-            :class="{ skipped: !!v.skipReason }"
-          >
-            <td>{{ v.name }}</td>
-            <td>
-              {{ formatNumber(v.currentWidth) }} ×
-              {{ formatNumber(v.currentHeight) }}
-            </td>
-            <td>
-              <template v-if="!v.skipReason">
-                {{ formatNumber(v.contentWidth) }} ×
-                {{ formatNumber(v.contentHeight) }}
-              </template>
-              <template v-else>—</template>
-            </td>
-            <td>{{ statusFor(v, normalizeData) }}</td>
-          </tr>
-        </tbody>
-      </table>
+      <div v-else-if="!normalizeData" class="normalize-loading">
+        Loading variants…
+      </div>
 
-      <p
-        v-if="normalizeData.instanceCount > 0"
-        class="instances"
-      >
-        <strong>{{ normalizeData.instanceCount }}</strong> instance{{
-          normalizeData.instanceCount === 1 ? '' : 's'
-        }}
-        will be repositioned to keep visuals stable.
-      </p>
-      <p v-else class="instances muted">No instances of this group found.</p>
+      <template v-else>
+        <p class="normalize-summary">
+          Target frame size:
+          <strong>
+            {{ formatNumber(normalizeData.targetWidth) }} ×
+            {{ formatNumber(normalizeData.targetHeight) }}
+          </strong>
+          — content-aware trim, instances are repositioned automatically so the
+          visual stays put.
+        </p>
+        <p v-if="groupTranslateActive" class="normalize-summary">
+          All children shift by
+          <strong>
+            {{ formatNumber(normalizeData.willTranslate.dx) }},
+            {{ formatNumber(normalizeData.willTranslate.dy) }}
+          </strong>; frames and instances shift in the opposite direction.
+        </p>
 
-      <p
-        v-if="normalizeData.lockedInstanceCount > 0"
-        class="instances locked"
-      >
-        <strong>{{ normalizeData.lockedInstanceCount }}</strong> nested
-        instance{{ normalizeData.lockedInstanceCount === 1 ? '' : 's' }} will
-        be skipped — they live inside another component or auto-layout and
-        Figma doesn't allow overriding their position. Visuals there will
-        shift; fix the surrounding components manually.
-      </p>
+        <table class="variants">
+          <thead>
+            <tr>
+              <th>Variant</th>
+              <th>Frame</th>
+              <th>Content</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="v in normalizeData.variants"
+              :key="v.name"
+              :class="{ skipped: !!v.skipReason }"
+            >
+              <td>{{ v.name }}</td>
+              <td>
+                {{ formatNumber(v.currentWidth) }} ×
+                {{ formatNumber(v.currentHeight) }}
+              </td>
+              <td>
+                <template v-if="!v.skipReason">
+                  {{ formatNumber(v.contentWidth) }} ×
+                  {{ formatNumber(v.contentHeight) }}
+                </template>
+                <template v-else>—</template>
+              </td>
+              <td>{{ statusFor(v, normalizeData) }}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p
+          v-if="normalizeData.instanceCount > 0"
+          class="instances"
+        >
+          <strong>{{ normalizeData.instanceCount }}</strong> instance{{
+            normalizeData.instanceCount === 1 ? '' : 's'
+          }}
+          will be repositioned to keep visuals stable.
+        </p>
+        <p v-else class="instances muted">No instances of this group found.</p>
+
+        <p
+          v-if="normalizeData.lockedInstanceCount > 0"
+          class="instances locked"
+        >
+          <strong>{{ normalizeData.lockedInstanceCount }}</strong> nested
+          instance{{ normalizeData.lockedInstanceCount === 1 ? '' : 's' }} will
+          be skipped — they live inside another component or auto-layout and
+          Figma doesn't allow overriding their position. Visuals there will
+          shift; fix the surrounding components manually.
+        </p>
+      </template>
     </template>
   </template>
 </template>
@@ -468,18 +400,6 @@ function onRetry() {
   margin-left: auto;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-}
-
-.field-inherited {
-  margin-left: auto;
-  font-size: 11px;
-  font-style: italic;
-  font-weight: 400;
-  color: var(--figma-color-text-secondary);
-}
-
-.field-inherited + .field-value {
-  margin-left: 6px;
 }
 
 .alias-banner {

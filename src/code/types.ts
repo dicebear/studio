@@ -116,13 +116,6 @@ export type DefinitionComponentBase = {
 
 export type DefinitionComponentAlias = {
   extends: string;
-  probability?: number;
-  rotate?: number[];
-  scale?: number[];
-  translate?: {
-    x?: number[];
-    y?: number[];
-  };
 };
 
 export type DefinitionComponents = Record<string, DefinitionComponentBase | DefinitionComponentAlias>;

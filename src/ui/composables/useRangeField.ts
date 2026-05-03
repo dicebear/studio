@@ -44,14 +44,9 @@ export function useRangeField<T extends object>(target: T) {
     }
   }
 
-  function resetRangeField(key: keyof T & string, defaultRange?: readonly number[]) {
+  function resetRangeField(key: keyof T & string) {
     write(key, null);
-
-    if (defaultRange && defaultRange.length === 2) {
-      rangeMode[key] = true;
-    } else {
-      delete rangeMode[key];
-    }
+    delete rangeMode[key];
   }
 
   function singleComputed(
