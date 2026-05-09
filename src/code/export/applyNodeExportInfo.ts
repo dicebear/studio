@@ -17,6 +17,20 @@ export async function applyNodeExportInfo(svg: string) {
     // SVGO will later automatically remove the corresponding element from "defs".
     delete resultNode.attributes['clip-path'];
 
+    // Figma bakes static x/y/width/height into <mask> based on the design at export time.
+    // At runtime DiceBear may apply per-component transforms (rotate/scale/translate) to
+    // <use> inside masks, which can push the rendered shape past those bounds and clip it
+    // (mask-type:alpha treats outside-bounds as fully transparent). Stripping the bounds
+    // (and maskUnits) lets the SVG defaults take over: maskUnits=objectBoundingBox with
+    // x=-10% y=-10% width=120% height=120%, sized to the masked element's bounding box.
+    if (resultNode.name === 'mask') {
+      delete resultNode.attributes['x'];
+      delete resultNode.attributes['y'];
+      delete resultNode.attributes['width'];
+      delete resultNode.attributes['height'];
+      delete resultNode.attributes['maskUnits'];
+    }
+
     if (nodeExportInfo.componentGroup) {
       resultNode = {
         name: '',
