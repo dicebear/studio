@@ -227,7 +227,8 @@ function onRetry() {
         :max="360"
         :step="1"
         unit="°"
-        :default-single="0"
+        :default-value="0"
+        :with-step="isDefinition"
       />
 
       <RangeField
@@ -238,7 +239,8 @@ function onRetry() {
         :max="1000"
         :step="1"
         unit="%"
-        :default-single="0"
+        :default-value="0"
+        :with-step="isDefinition"
       />
 
       <RangeField
@@ -249,7 +251,8 @@ function onRetry() {
         :max="1000"
         :step="1"
         unit="%"
-        :default-single="0"
+        :default-value="0"
+        :with-step="isDefinition"
       />
 
       <RangeField
@@ -260,7 +263,8 @@ function onRetry() {
         :min="0"
         :max="10"
         :step="0.01"
-        :default-single="1"
+        :default-value="1"
+        :with-step="isDefinition"
       />
 
       <Field v-if="!isDefinition" label="Defaults">

@@ -1,5 +1,6 @@
 import type {
   ComponentGroupSettings,
+  DefinitionRange,
   FrameSettings,
   RangeValue,
 } from '../types';
@@ -9,34 +10,40 @@ export function sanitizeFrameSettings(settings: FrameSettings): void {
   settings.packageVersion = settings.packageVersion.replace(/[^0-9\.]/gi, '');
 }
 
+function toFiniteNumber(v: unknown): number | null {
+  const n = typeof v === 'number' ? v : Number(v);
+
+  return Number.isFinite(n) ? n : null;
+}
+
+function clamp(v: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, v));
+}
+
 function clampRange(value: unknown, min: number, max: number): RangeValue {
-  if (value === null || value === undefined || value === '') {
+  if (value === null || value === undefined || value === '' || typeof value !== 'object') {
     return null;
   }
 
-  if (typeof value === 'number') {
-    if (Number.isNaN(value)) {
-      return null;
-    }
+  const obj = value as { min?: unknown; max?: unknown; step?: unknown };
+  const a = toFiniteNumber(obj.min);
+  const b = toFiniteNumber(obj.max);
 
-    return Math.max(min, Math.min(max, value));
+  if (a === null || b === null) {
+    return null;
   }
 
-  if (Array.isArray(value) && value.length === 2) {
-    const a = typeof value[0] === 'number' ? value[0] : Number(value[0]);
-    const b = typeof value[1] === 'number' ? value[1] : Number(value[1]);
+  const sanitized: DefinitionRange = {
+    min: clamp(a, min, max),
+    max: clamp(b, min, max),
+  };
+  const step = toFiniteNumber(obj.step);
 
-    if (Number.isNaN(a) || Number.isNaN(b)) {
-      return null;
-    }
-
-    return [
-      Math.max(min, Math.min(max, a)),
-      Math.max(min, Math.min(max, b)),
-    ];
+  if (step !== null && step > 0) {
+    sanitized.step = Math.min(Math.abs(max - min), step);
   }
 
-  return null;
+  return sanitized;
 }
 
 function rangeEquals(a: RangeValue, b: RangeValue): boolean {
@@ -48,15 +55,7 @@ function rangeEquals(a: RangeValue, b: RangeValue): boolean {
     return false;
   }
 
-  if (typeof a === 'number' && typeof b === 'number') {
-    return a === b;
-  }
-
-  if (Array.isArray(a) && Array.isArray(b)) {
-    return a[0] === b[0] && a[1] === b[1];
-  }
-
-  return false;
+  return a.min === b.min && a.max === b.max && a.step === b.step;
 }
 
 function assignIfChanged<K extends 'rotation' | 'translateX' | 'translateY'>(
@@ -75,7 +74,7 @@ export function sanitizeComponentSettings(settings: ComponentGroupSettings): voi
     typeof rawProbability === 'number' ? rawProbability : parseInt(String(rawProbability), 10);
   const nextProbability = Number.isNaN(parsedProbability)
     ? null
-    : Math.max(0, Math.min(100, parsedProbability));
+    : clamp(parsedProbability, 0, 100);
 
   if (settings.probability !== nextProbability) {
     settings.probability = nextProbability;
@@ -90,9 +89,7 @@ export function sanitizeComponentSettings(settings: ComponentGroupSettings): voi
   for (const key of Object.keys(weights)) {
     const raw = weights[key];
     const parsed = typeof raw === 'number' ? raw : parseFloat(String(raw));
-    const next = Number.isNaN(parsed)
-      ? 1
-      : Math.max(0, Math.min(1_000_000, parsed));
+    const next = Number.isNaN(parsed) ? 1 : clamp(parsed, 0, 1_000_000);
 
     if (weights[key] !== next) {
       weights[key] = next;

@@ -18,7 +18,9 @@ export type FrameSettings = {
   fileShareUrl: string;
 };
 
-export type RangeValue = number | readonly [number, number] | null;
+export type DefinitionRange = { min: number; max: number; step?: number };
+
+export type RangeValue = DefinitionRange | null;
 
 export type ComponentGroupSettings = {
   defaults: Record<string, boolean>;

@@ -45,5 +45,31 @@ export function convertSvgsonToDefinition(node: INode): DefinitionElement {
     result.children = node.children.map(convertSvgsonToDefinition);
   }
 
+  // Skip collapse when the wrapping <g> carries mask/clip-path/filter/etc:
+  // those establish rendering contexts that don't transfer to the child <use>.
+  if (
+    result.type === 'element' &&
+    result.name === 'g' &&
+    result.children?.length === 1 &&
+    result.children[0].type === 'component'
+  ) {
+    const parentAttributes = result.attributes ?? {};
+    const isTransformOnly = Object.keys(parentAttributes).every((k) => k === 'transform');
+
+    if (isTransformOnly) {
+      const [child] = result.children;
+      const mergedAttributes = { ...(child.attributes ?? {}) };
+      const transformParts = [parentAttributes.transform, mergedAttributes.transform].filter(
+        (v): v is string => typeof v === 'string' && v.length > 0,
+      );
+
+      if (transformParts.length > 0) {
+        mergedAttributes.transform = transformParts.join(' ');
+      }
+
+      return { ...child, attributes: mergedAttributes };
+    }
+  }
+
   return result;
 }

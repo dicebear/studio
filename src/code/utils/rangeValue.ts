@@ -1,83 +1,61 @@
-import type { RangeValue } from '../types';
-
-function sortPair(a: number, b: number): [number, number] {
-  return [Math.min(a, b), Math.max(a, b)];
-}
+import type { DefinitionRange, RangeValue } from '../types';
 
 function isFiniteNumber(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v);
 }
 
-function isFiniteTuple(v: unknown): v is readonly [number, number] {
-  return Array.isArray(v) && v.length === 2 && isFiniteNumber(v[0]) && isFiniteNumber(v[1]);
+function isFiniteRange(v: unknown): v is DefinitionRange {
+  if (typeof v !== 'object' || v === null) {
+    return false;
+  }
+
+  const r = v as { min?: unknown; max?: unknown; step?: unknown };
+
+  if (!isFiniteNumber(r.min) || !isFiniteNumber(r.max)) {
+    return false;
+  }
+
+  return r.step === undefined || (isFiniteNumber(r.step) && r.step > 0);
 }
 
 function normalizeRange(v: unknown): RangeValue {
-  if (isFiniteNumber(v)) {
-    return v;
-  }
+  return isFiniteRange(v) ? v : null;
+}
 
-  if (isFiniteTuple(v)) {
-    return v;
-  }
+function sortRange(r: DefinitionRange): DefinitionRange {
+  const min = Math.min(r.min, r.max);
+  const max = Math.max(r.min, r.max);
 
-  return null;
+  return r.step === undefined ? { min, max } : { min, max, step: r.step };
 }
 
 export function isRangeEmpty(v: unknown): boolean {
   const n = normalizeRange(v);
 
-  if (n === null) {
-    return true;
-  }
-
-  if (typeof n === 'number') {
-    return n === 0;
-  }
-
-  return n[0] === 0 && n[1] === 0;
+  return n === null || (n.min === 0 && n.max === 0);
 }
 
-export function toRangeArray(v: RangeValue): number[] | undefined {
+// Returns undefined when the range collapses to `neutral` — a no-op transform
+// the schema treats as absent.
+function toDefinitionRange(
+  v: RangeValue,
+  neutral: number,
+): DefinitionRange | undefined {
   const n = normalizeRange(v);
 
-  if (n === null || n === 0) {
+  if (n === null || (n.min === neutral && n.max === neutral)) {
     return undefined;
   }
 
-  if (typeof n === 'number') {
-    return [n * -1, n];
-  }
-
-  if (n[0] === 0 && n[1] === 0) {
-    return undefined;
-  }
-
-  return sortPair(n[0], n[1]);
+  return sortRange(n);
 }
 
-const SCALE_NEUTRAL = 1;
+export function toRangeObject(v: RangeValue): DefinitionRange | undefined {
+  return toDefinitionRange(v, 0);
+}
 
-export function toScaleArray(v: RangeValue): number[] | undefined {
-  const n = normalizeRange(v);
-
-  if (n === null) {
-    return undefined;
-  }
-
-  if (typeof n === 'number') {
-    if (n === SCALE_NEUTRAL) {
-      return undefined;
-    }
-
-    return [n, n];
-  }
-
-  if (n[0] === SCALE_NEUTRAL && n[1] === SCALE_NEUTRAL) {
-    return undefined;
-  }
-
-  return sortPair(n[0], n[1]);
+export function toScaleObject(v: RangeValue): DefinitionRange | undefined {
+  return toDefinitionRange(v, 1);
 }
 
 export type RangeSchemaBounds = {
@@ -89,27 +67,17 @@ export type RangeSchemaBounds = {
 export function rangeSchemaBounds(v: RangeValue): RangeSchemaBounds | null {
   const n = normalizeRange(v);
 
-  if (n === null || n === 0) {
+  if (n === null || (n.min === 0 && n.max === 0)) {
     return null;
   }
 
-  if (typeof n === 'number') {
-    return {
-      minimum: n * -1,
-      maximum: n,
-      default: [n * -1, n],
-    };
-  }
+  const { min, max } = sortRange(n);
 
-  if (n[0] === 0 && n[1] === 0) {
-    return null;
-  }
-
-  const [lo, hi] = sortPair(n[0], n[1]);
-
+  // Step (if any) intentionally not propagated — the schema describes
+  // user-facing per-component overrides, which are continuous.
   return {
-    minimum: lo,
-    maximum: hi,
-    default: [lo, hi],
+    minimum: min,
+    maximum: max,
+    default: [min, max],
   };
 }

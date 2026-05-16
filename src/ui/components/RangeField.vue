@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { ArrowLeftRight } from '@lucide/vue';
 import { useRangeField } from '../composables/useRangeField';
 import type { ComponentGroupSettings, RangeValue } from '../types';
 import FieldReset from './FieldReset.vue';
@@ -20,23 +19,19 @@ const props = withDefaults(
     max: number;
     step: number;
     unit?: string;
-    defaultSingle: number;
+    defaultValue: number;
+    withStep?: boolean;
   }>(),
   {
     unit: '',
+    withStep: false,
   },
 );
 
-const {
-  isRangeMode,
-  toggleRangeMode,
-  resetRangeField,
-  singleComputed,
-  rangeComputed,
-} = useRangeField(props.target);
+const { resetRangeField, rangeComputed, stepComputed } = useRangeField(props.target);
 
-const singleVal = singleComputed(props.optionKey, () => props.defaultSingle);
-const rangeVal = rangeComputed(props.optionKey, () => props.defaultSingle);
+const rangeVal = rangeComputed(props.optionKey, () => props.defaultValue);
+const stepVal = stepComputed(props.optionKey);
 
 const displayRange = computed<[number, number]>(() => {
   const [a, b] = rangeVal.value;
@@ -49,39 +44,34 @@ const displayRange = computed<[number, number]>(() => {
   <div class="field">
     <div class="field-label">
       <span class="field-label-text">{{ label }}</span>
-      <Button
-        size="small"
-        :severity="isRangeMode(optionKey) ? 'primary' : 'secondary'"
-        v-tooltip="isRangeMode(optionKey) ? 'Switch to fixed value' : 'Switch to range'"
-        class="field-toggle"
-        @click="toggleRangeMode(optionKey, defaultSingle)"
-      >
-        <ArrowLeftRight :size="14" />
-      </Button>
       <FieldReset
         v-if="target[optionKey] !== null"
         @click="resetRangeField(optionKey)"
       />
-      <span v-if="isRangeMode(optionKey)" class="field-value">
+      <span class="field-value">
         {{ displayRange[0] }}{{ unit }} — {{ displayRange[1] }}{{ unit }}
       </span>
-      <span v-else class="field-value">{{ singleVal }}{{ unit }}</span>
     </div>
     <Slider
-      v-if="isRangeMode(optionKey)"
       v-model="rangeVal"
       :range="true"
       :min="min"
       :max="max"
       :step="step"
     />
-    <Slider
-      v-else
-      v-model="singleVal"
-      :min="min"
-      :max="max"
-      :step="step"
-    />
+    <label v-if="withStep" class="step-row">
+      <span class="step-label">Step</span>
+      <input
+        v-model.lazy.number="stepVal"
+        type="number"
+        :min="0"
+        :max="Math.abs(max - min)"
+        step="any"
+        placeholder="no step"
+        class="step-input"
+      />
+      <span class="step-unit">{{ unit }}</span>
+    </label>
   </div>
 </template>
 
@@ -114,9 +104,40 @@ const displayRange = computed<[number, number]>(() => {
   font-variant-numeric: tabular-nums;
 }
 
-.field-toggle {
-  padding: 0 6px !important;
-  min-width: 0 !important;
-  height: 20px !important;
+.step-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--figma-color-text-secondary);
+}
+
+.step-label {
+  flex: 1;
+  color: var(--figma-color-text);
+}
+
+.step-input {
+  width: 80px;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--figma-color-border);
+  border-radius: 4px;
+  background-color: var(--figma-color-bg);
+  color: var(--figma-color-text);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.step-input:focus {
+  outline: none;
+  border-color: var(--figma-color-border-selected);
+}
+
+.step-unit {
+  width: 14px;
+  text-align: left;
+  color: var(--figma-color-text-secondary);
 }
 </style>

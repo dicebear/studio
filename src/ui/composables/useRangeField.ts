@@ -1,11 +1,9 @@
-import { reactive, computed } from 'vue';
+import { computed } from 'vue';
 import type { RangeValue } from '../types';
 
 type Indexable = Record<string, unknown>;
 
 export function useRangeField<T extends object>(target: T) {
-  const rangeMode = reactive<Record<string, boolean>>({});
-
   function read(key: string): RangeValue {
     return (target as Indexable)[key] as RangeValue;
   }
@@ -14,65 +12,13 @@ export function useRangeField<T extends object>(target: T) {
     (target as Indexable)[key] = value;
   }
 
-  function isRangeMode(key: keyof T & string): boolean {
-    if (rangeMode[key] !== undefined) {
-      return rangeMode[key];
-    }
-
-    return Array.isArray(read(key));
-  }
-
-  function toggleRangeMode(key: keyof T & string, fallback: number) {
-    const wasRange = isRangeMode(key);
-
-    rangeMode[key] = !wasRange;
-
-    if (wasRange) {
-      const val = read(key);
-      const single = Array.isArray(val)
-        ? val[0]
-        : typeof val === 'number'
-          ? val
-          : fallback;
-
-      write(key, single);
-    } else {
-      const val = read(key);
-      const single = typeof val === 'number' ? val : fallback;
-
-      write(key, [single, single]);
-    }
-  }
-
   function resetRangeField(key: keyof T & string) {
     write(key, null);
-    delete rangeMode[key];
-  }
-
-  function singleComputed(
-    key: keyof T & string,
-    fallback: number | (() => number),
-  ) {
-    const resolve = typeof fallback === 'function' ? fallback : () => fallback;
-
-    return computed<number>({
-      get: () => {
-        const val = read(key);
-
-        return typeof val === 'number' ? val : resolve();
-      },
-      set: (val: number) => {
-        write(key, val);
-      },
-    });
   }
 
   function rangeComputed(
     key: keyof T & string,
-    fallback:
-      | number
-      | readonly number[]
-      | (() => number | readonly number[]),
+    fallback: number | (() => number),
   ) {
     const resolve = typeof fallback === 'function' ? fallback : () => fallback;
 
@@ -80,36 +26,49 @@ export function useRangeField<T extends object>(target: T) {
       get: () => {
         const val = read(key);
 
-        if (Array.isArray(val) && val.length === 2) {
-          return [val[0], val[1]] as [number, number];
+        if (val !== null) {
+          return [val.min, val.max] as [number, number];
         }
 
-        if (typeof val === 'number') {
-          return [val, val] as [number, number];
-        }
-
-        const fb = resolve();
-
-        if (Array.isArray(fb) && fb.length === 2) {
-          return [fb[0], fb[1]] as [number, number];
-        }
-
-        const single = typeof fb === 'number' ? fb : 0;
+        const single = resolve();
 
         return [single, single] as [number, number];
       },
-      set: (val: [number, number]) => {
-        write(key, [val[0], val[1]]);
+      set: ([min, max]: [number, number]) => {
+        const step = read(key)?.step;
+
+        write(key, step !== undefined ? { min, max, step } : { min, max });
+      },
+    });
+  }
+
+  function stepComputed(key: keyof T & string) {
+    return computed<number | null>({
+      get: () => {
+        const step = read(key)?.step;
+
+        return step !== undefined && step > 0 ? step : null;
+      },
+      set: (next: number | null) => {
+        const val = read(key);
+
+        if (val === null) {
+          return;
+        }
+
+        write(
+          key,
+          next !== null && next > 0
+            ? { min: val.min, max: val.max, step: next }
+            : { min: val.min, max: val.max },
+        );
       },
     });
   }
 
   return {
-    rangeMode,
-    isRangeMode,
-    toggleRangeMode,
     resetRangeField,
-    singleComputed,
     rangeComputed,
+    stepComputed,
   };
 }

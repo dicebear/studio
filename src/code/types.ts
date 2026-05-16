@@ -18,7 +18,9 @@ export type FrameSettings = {
   fileShareUrl: string;
 };
 
-export type RangeValue = number | readonly [number, number] | null;
+export type DefinitionRange = { min: number; max: number; step?: number };
+
+export type RangeValue = DefinitionRange | null;
 
 export type ComponentGroupSettings = {
   defaults: Record<string, boolean>;
@@ -102,11 +104,11 @@ export type DefinitionComponentBase = {
   width: number;
   height: number;
   probability?: number;
-  rotate?: number[];
-  scale?: number[];
+  rotate?: DefinitionRange;
+  scale?: DefinitionRange;
   translate?: {
-    x?: number[];
-    y?: number[];
+    x?: DefinitionRange;
+    y?: DefinitionRange;
   };
   variants: Record<string, {
     elements: DefinitionElement[];
