@@ -42,6 +42,12 @@ export async function createTemplateString(exportData: Export, node: FrameNode |
         floatPrecision: exportData.frame.settings.precision,
       },
     },
+    {
+      name: 'cleanupNumericValues',
+      params: {
+        floatPrecision: exportData.frame.settings.precision,
+      },
+    },
     'mergePaths',
   ];
 
