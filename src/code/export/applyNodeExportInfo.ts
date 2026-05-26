@@ -3,6 +3,7 @@ import { parse, stringify } from 'svgson';
 import { readNodeExportInfo } from '../utils/readNodeExportInfo';
 import { writeNodeExportInfo } from '../utils/writeNodeExportInfo';
 import { mapSvgsonNodes } from '../utils/mapSvgsonNodes';
+import { normalizeFilterPrimitiveIds } from '../utils/normalizeFilterPrimitiveIds';
 
 export async function applyNodeExportInfo(svg: string) {
   const svgNode = mapSvgsonNodes(await parse(svg), (node) => {
@@ -95,6 +96,8 @@ export async function applyNodeExportInfo(svg: string) {
 
     return resultNode;
   });
+
+  normalizeFilterPrimitiveIds(svgNode);
 
   return stringify(svgNode);
 }
