@@ -20,12 +20,12 @@ name your components and color groups, and run the export:
 
 ## Contributing
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for local development, build
+See [CONTRIBUTING.md](https://github.com/dicebear/exporter-plugin-for-figma/blob/main/CONTRIBUTING.md) for local development, build
 scripts, and how to load the plugin in Figma from source.
 
 ## License
 
-[MIT](./LICENSE).
+[MIT](https://github.com/dicebear/exporter-plugin-for-figma/blob/main/LICENSE).
 
 ## Sponsors
 
