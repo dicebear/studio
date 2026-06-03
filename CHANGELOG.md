@@ -5,6 +5,13 @@ All notable changes to the DiceBear Exporter for Figma will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [38] - 2026-06-03
+
+### Changed
+
+- Reference `@dicebear/schema@1.1.0` in exported definition files (was `1.0.0`). The 1.1.0 schema adds an upper bound to
+  the canvas and component dimensions and is otherwise backward compatible with existing definitions.
+
 ## [37] - 2026-06-03
 
 ### Fixed
