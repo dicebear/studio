@@ -6,6 +6,7 @@ import { applyNodeExportInfo } from './applyNodeExportInfo';
 import { calculateNodeExportInfo } from './calculateNodeExportInfo';
 import { useDefinitionFile } from '../utils/useDefinitionFile';
 import { PluginConfig } from 'svgo';
+import { cleanupNumericValues } from './cleanupNumericValues';
 
 export async function createTemplateString(exportData: Export, node: FrameNode | ComponentNode) {
   const aliasesEnabled = useDefinitionFile(exportData.frame.settings.dicebearVersion);
@@ -42,12 +43,9 @@ export async function createTemplateString(exportData: Export, node: FrameNode |
         floatPrecision: exportData.frame.settings.precision,
       },
     },
-    {
-      name: 'cleanupNumericValues',
-      params: {
-        floatPrecision: exportData.frame.settings.precision,
-      },
-    },
+    cleanupNumericValues({
+      floatPrecision: exportData.frame.settings.precision,
+    }),
     'mergePaths',
   ];
 

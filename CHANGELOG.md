@@ -5,6 +5,16 @@ All notable changes to the DiceBear Exporter for Figma will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [37] - 2026-06-03
+
+### Fixed
+
+- Preserve opacity and gradient stop offset precision in the SVG export. SVGO's `cleanupNumericValues` plugin rounds
+  every numeric attribute to the configured precision, so exporting at precision `0` collapsed normalized 0..1 values
+  (`opacity`, `fill-opacity`, `stroke-opacity`, `stop-opacity`, `flood-opacity`, `offset`) to `0` or `1` and made them
+  useless. The exporter now uses a custom drop-in replacement that keeps these attributes at a usable minimum precision
+  while still rounding all other values to the configured precision.
+
 ## [36] - 2026-05-26
 
 ### Fixed
