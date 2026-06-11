@@ -9,14 +9,7 @@ defineProps<{
   <div class="weight-list">
     <label v-for="name in options" :key="name" class="weight-row">
       <span class="weight-label">{{ name }}</span>
-      <input
-        v-model.lazy.number="values[name]"
-        type="number"
-        min="0"
-        max="1000000"
-        step="any"
-        class="weight-input"
-      />
+      <input v-model.lazy.number="values[name]" type="number" min="0" max="1000000" step="any" class="weight-input" />
     </label>
   </div>
 </template>

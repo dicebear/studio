@@ -37,10 +37,7 @@ export function isRangeEmpty(v: unknown): boolean {
 
 // Returns undefined when the range collapses to `neutral` — a no-op transform
 // the schema treats as absent.
-function toDefinitionRange(
-  v: RangeValue,
-  neutral: number,
-): DefinitionRange | undefined {
+function toDefinitionRange(v: RangeValue, neutral: number): DefinitionRange | undefined {
   const n = normalizeRange(v);
 
   if (n === null || (n.min === neutral && n.max === neutral)) {

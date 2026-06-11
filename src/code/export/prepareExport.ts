@@ -64,15 +64,7 @@ export async function prepareExport(frameSelection: FrameNode): Promise<Export> 
   let item: ChildrenMixin | undefined;
 
   while ((item = pending.pop())) {
-    await scanItem(
-      item,
-      exportData,
-      frameSelection,
-      componentGroups,
-      aliasesEnabled,
-      visitedGroups,
-      pending,
-    );
+    await scanItem(item, exportData, frameSelection, componentGroups, aliasesEnabled, visitedGroups, pending);
   }
 
   return exportData;
@@ -91,9 +83,7 @@ async function scanItem(
   // (incl. flattened booleans whose type isn't covered by a static list).
   // INSTANCE nodes also satisfy this check, so a single walk covers both
   // color tracking and instance/alias resolution.
-  const candidates = item.findAll(
-    (v) => 'fillStyleId' in v || 'strokeStyleId' in v,
-  ) as SceneNode[];
+  const candidates = item.findAll((v) => 'fillStyleId' in v || 'strokeStyleId' in v) as SceneNode[];
 
   if (candidates.length === 0) {
     return;
@@ -133,14 +123,7 @@ async function scanItem(
     const instance = instances[i];
     const resolved = resolveComponentName(instance, mainComponent, aliasesEnabled);
 
-    ensureMasterGroupRegistered(
-      exportData,
-      frame,
-      componentGroups,
-      resolved.masterGroup,
-      visitedGroups,
-      pending,
-    );
+    ensureMasterGroupRegistered(exportData, frame, componentGroups, resolved.masterGroup, visitedGroups, pending);
 
     if (!resolved.isAlias) {
       continue;

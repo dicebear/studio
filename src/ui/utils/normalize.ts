@@ -6,10 +6,7 @@ export function isClose(a: number, b: number): boolean {
   return Math.abs(a - b) < NORMALIZE_TOLERANCE;
 }
 
-export function isVariantAligned(
-  variant: NormalizeVariant,
-  data: NormalizeData,
-): boolean {
+export function isVariantAligned(variant: NormalizeVariant, data: NormalizeData): boolean {
   return (
     isClose(variant.currentWidth, data.targetWidth) &&
     isClose(variant.currentHeight, data.targetHeight) &&
@@ -28,10 +25,7 @@ export function hasPendingChanges(data: NormalizeData): boolean {
       continue;
     }
 
-    if (
-      !isClose(v.currentWidth, data.targetWidth) ||
-      !isClose(v.currentHeight, data.targetHeight)
-    ) {
+    if (!isClose(v.currentWidth, data.targetWidth) || !isClose(v.currentHeight, data.targetHeight)) {
       return true;
     }
   }

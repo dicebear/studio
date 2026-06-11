@@ -11,11 +11,7 @@ const store = usePluginStore();
 
 const targetName = computed(() => props.name ?? '');
 
-const isActive = computed(
-  () =>
-    store.activeStageKind === props.kind &&
-    store.activeStageName === targetName.value,
-);
+const isActive = computed(() => store.activeStageKind === props.kind && store.activeStageName === targetName.value);
 
 function onClick() {
   store.activeStageKind = props.kind;
@@ -24,12 +20,7 @@ function onClick() {
 </script>
 
 <template>
-  <button
-    type="button"
-    class="menu-item"
-    :class="{ active: isActive }"
-    @click="onClick"
-  >
+  <button type="button" class="menu-item" :class="{ active: isActive }" @click="onClick">
     <slot />
   </button>
 </template>
@@ -46,7 +37,9 @@ function onClick() {
   font-weight: 400;
   text-align: left;
   color: var(--figma-color-text);
-  transition: background-color 120ms ease, border-color 120ms ease;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
 }
 
 .menu-item:hover:not(.active) {

@@ -28,10 +28,8 @@ export function convertSvgsonToDefinition(node: INode): DefinitionElement {
 
   if (result.name === 'use') {
     if (typeof result.attributes?.href === 'string') {
-      const componentMatch = result.attributes.href.match(
-        /^#component-([a-zA-Z0-9-]+)$/
-      );
-  
+      const componentMatch = result.attributes.href.match(/^#component-([a-zA-Z0-9-]+)$/);
+
       if (componentMatch) {
         delete result.attributes.href;
 

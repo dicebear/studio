@@ -16,10 +16,7 @@ export function useRangeField<T extends object>(target: T) {
     write(key, null);
   }
 
-  function rangeComputed(
-    key: keyof T & string,
-    fallback: number | (() => number),
-  ) {
+  function rangeComputed(key: keyof T & string, fallback: number | (() => number)) {
     const resolve = typeof fallback === 'function' ? fallback : () => fallback;
 
     return computed<[number, number]>({
@@ -58,9 +55,7 @@ export function useRangeField<T extends object>(target: T) {
 
         write(
           key,
-          next !== null && next > 0
-            ? { min: val.min, max: val.max, step: next }
-            : { min: val.min, max: val.max },
+          next !== null && next > 0 ? { min: val.min, max: val.max, step: next } : { min: val.min, max: val.max },
         );
       },
     });

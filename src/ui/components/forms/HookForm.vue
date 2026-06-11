@@ -10,22 +10,10 @@ const settings = computed(() => store.data!.frame.settings);
 
 <template>
   <Field label="onPreCreateHook">
-    <Textarea
-      v-model="settings.onPreCreateHook"
-      class="hook-editor"
-      rows="10"
-      spellcheck="false"
-      fluid
-    />
+    <Textarea v-model="settings.onPreCreateHook" class="hook-editor" rows="10" spellcheck="false" fluid />
   </Field>
   <Field label="onPostCreateHook">
-    <Textarea
-      v-model="settings.onPostCreateHook"
-      class="hook-editor"
-      rows="10"
-      spellcheck="false"
-      fluid
-    />
+    <Textarea v-model="settings.onPostCreateHook" class="hook-editor" rows="10" spellcheck="false" fluid />
   </Field>
 </template>
 

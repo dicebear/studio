@@ -18,9 +18,7 @@ const group = computed(() => store.data!.components[props.componentGroup]);
 const settings = computed(() => group.value.settings);
 const extendsGroup = computed(() => group.value.extendsGroup);
 
-const isDefinition = computed(() =>
-  useDefinitionFile(store.data!.frame.settings.dicebearVersion),
-);
+const isDefinition = computed(() => useDefinitionFile(store.data!.frame.settings.dicebearVersion));
 
 const precision = computed(() => store.data!.frame.settings.precision);
 
@@ -29,10 +27,7 @@ function formatNumber(value: number): string {
 }
 
 const probability = computed<number>({
-  get: () =>
-    typeof settings.value.probability === 'number'
-      ? settings.value.probability
-      : 100,
+  get: () => (typeof settings.value.probability === 'number' ? settings.value.probability : 100),
   set: (val: number) => {
     settings.value.probability = val;
   },
@@ -50,9 +45,7 @@ const usedByAliases = computed<string[]>(() => {
   return list.sort();
 });
 
-const aliasInstanceIds = computed<string[]>(
-  () => group.value.aliasInstanceIds ?? [],
-);
+const aliasInstanceIds = computed<string[]>(() => group.value.aliasInstanceIds ?? []);
 
 function revealAliasInstances() {
   if (aliasInstanceIds.value.length === 0) {
@@ -66,9 +59,7 @@ const defaultsKeys = computed(() => Object.keys(settings.value.defaults));
 
 const weightsKeys = computed(() => Object.keys(settings.value.weights));
 
-const hasNonDefaultWeights = computed(() =>
-  weightsKeys.value.some((k) => settings.value.weights[k] !== 1),
-);
+const hasNonDefaultWeights = computed(() => weightsKeys.value.some((k) => settings.value.weights[k] !== 1));
 
 function resetWeights(): void {
   for (const key of weightsKeys.value) {
@@ -126,9 +117,7 @@ function statusFor(
     return 'already aligned';
   }
 
-  const sizeMatches =
-    isClose(v.currentWidth, data.targetWidth) &&
-    isClose(v.currentHeight, data.targetHeight);
+  const sizeMatches = isClose(v.currentWidth, data.targetWidth) && isClose(v.currentHeight, data.targetHeight);
 
   return sizeMatches ? 'will shift' : 'will resize';
 }
@@ -148,21 +137,15 @@ function onRetry() {
 <template>
   <div v-if="extendsGroup" class="alias-banner">
     <p>
-      Alias of <strong>{{ extendsGroup }}</strong>. Variants, dimensions, and
-      transforms are inherited from the source — aliases have no own settings.
+      Alias of <strong>{{ extendsGroup }}</strong
+      >. Variants, dimensions, and transforms are inherited from the source — aliases have no own settings.
     </p>
     <p>
-      This alias exists because at least one instance in Figma is renamed
-      to <strong>{{ componentGroup }}</strong>. To remove it, rename those
-      instances back to the <strong>{{ extendsGroup }}</strong> group or
-      revert the rename in Figma.
+      This alias exists because at least one instance in Figma is renamed to <strong>{{ componentGroup }}</strong
+      >. To remove it, rename those instances back to the <strong>{{ extendsGroup }}</strong> group or revert the rename
+      in Figma.
     </p>
-    <button
-      v-if="aliasInstanceIds.length > 0"
-      type="button"
-      class="alias-banner-action"
-      @click="revealAliasInstances"
-    >
+    <button v-if="aliasInstanceIds.length > 0" type="button" class="alias-banner-action" @click="revealAliasInstances">
       Show
       {{ aliasInstanceIds.length }}
       renamed instance{{ aliasInstanceIds.length === 1 ? '' : 's' }} in Figma
@@ -179,12 +162,7 @@ function onRetry() {
     </div>
 
     <div class="tab-strip">
-      <button
-        type="button"
-        class="tab"
-        :class="{ active: tab === 'settings' }"
-        @click="tab = 'settings'"
-      >
+      <button type="button" class="tab" :class="{ active: tab === 'settings' }" @click="tab = 'settings'">
         Settings
       </button>
       <button
@@ -196,12 +174,7 @@ function onRetry() {
       >
         Weights
       </button>
-      <button
-        type="button"
-        class="tab"
-        :class="{ active: tab === 'normalize' }"
-        @click="tab = 'normalize'"
-      >
+      <button type="button" class="tab" :class="{ active: tab === 'normalize' }" @click="tab = 'normalize'">
         Normalize
       </button>
     </div>
@@ -210,10 +183,7 @@ function onRetry() {
       <div class="field">
         <div class="field-label">
           <span class="field-label-text">Probability (in percent)</span>
-          <FieldReset
-            v-if="settings.probability !== null"
-            @click="settings.probability = null"
-          />
+          <FieldReset v-if="settings.probability !== null" @click="settings.probability = null" />
           <span class="field-value">{{ probability }}%</span>
         </div>
         <Slider v-model="probability" :min="0" :max="100" :step="1" />
@@ -275,17 +245,13 @@ function onRetry() {
     <template v-else-if="tab === 'weights'">
       <p class="weights-summary">
         Higher values make a variant more likely to be picked. Default
-        <strong>1</strong>; <strong>0</strong> means never selected unless every
-        variant is 0. Range 0–1,000,000.
+        <strong>1</strong>; <strong>0</strong> means never selected unless every variant is 0. Range 0–1,000,000.
       </p>
 
       <div class="field">
         <div class="field-label">
           <span class="field-label-text">Weights</span>
-          <FieldReset
-            v-if="hasNonDefaultWeights"
-            @click="resetWeights"
-          />
+          <FieldReset v-if="hasNonDefaultWeights" @click="resetWeights" />
         </div>
         <WeightGroup :values="settings.weights" :options="weightsKeys" />
       </div>
@@ -297,9 +263,7 @@ function onRetry() {
         <button type="button" class="retry" @click="onRetry">Retry</button>
       </div>
 
-      <div v-else-if="!normalizeData" class="normalize-loading">
-        Loading variants…
-      </div>
+      <div v-else-if="!normalizeData" class="normalize-loading">Loading variants…</div>
 
       <template v-else>
         <p class="normalize-summary">
@@ -308,15 +272,14 @@ function onRetry() {
             {{ formatNumber(normalizeData.targetWidth) }} ×
             {{ formatNumber(normalizeData.targetHeight) }}
           </strong>
-          — content-aware trim, instances are repositioned automatically so the
-          visual stays put.
+          — content-aware trim, instances are repositioned automatically so the visual stays put.
         </p>
         <p v-if="groupTranslateActive" class="normalize-summary">
           All children shift by
           <strong>
             {{ formatNumber(normalizeData.willTranslate.dx) }},
-            {{ formatNumber(normalizeData.willTranslate.dy) }}
-          </strong>; frames and instances shift in the opposite direction.
+            {{ formatNumber(normalizeData.willTranslate.dy) }} </strong
+          >; frames and instances shift in the opposite direction.
         </p>
 
         <table class="variants">
@@ -329,11 +292,7 @@ function onRetry() {
             </tr>
           </thead>
           <tbody>
-            <tr
-              v-for="v in normalizeData.variants"
-              :key="v.name"
-              :class="{ skipped: !!v.skipReason }"
-            >
+            <tr v-for="v in normalizeData.variants" :key="v.name" :class="{ skipped: !!v.skipReason }">
               <td>{{ v.name }}</td>
               <td>
                 {{ formatNumber(v.currentWidth) }} ×
@@ -351,26 +310,18 @@ function onRetry() {
           </tbody>
         </table>
 
-        <p
-          v-if="normalizeData.instanceCount > 0"
-          class="instances"
-        >
-          <strong>{{ normalizeData.instanceCount }}</strong> instance{{
-            normalizeData.instanceCount === 1 ? '' : 's'
-          }}
+        <p v-if="normalizeData.instanceCount > 0" class="instances">
+          <strong>{{ normalizeData.instanceCount }}</strong> instance{{ normalizeData.instanceCount === 1 ? '' : 's' }}
           will be repositioned to keep visuals stable.
         </p>
         <p v-else class="instances muted">No instances of this group found.</p>
 
-        <p
-          v-if="normalizeData.lockedInstanceCount > 0"
-          class="instances locked"
-        >
-          <strong>{{ normalizeData.lockedInstanceCount }}</strong> nested
-          instance{{ normalizeData.lockedInstanceCount === 1 ? '' : 's' }} will
-          be skipped — they live inside another component or auto-layout and
-          Figma doesn't allow overriding their position. Visuals there will
-          shift; fix the surrounding components manually.
+        <p v-if="normalizeData.lockedInstanceCount > 0" class="instances locked">
+          <strong>{{ normalizeData.lockedInstanceCount }}</strong> nested instance{{
+            normalizeData.lockedInstanceCount === 1 ? '' : 's'
+          }}
+          will be skipped — they live inside another component or auto-layout and Figma doesn't allow overriding their
+          position. Visuals there will shift; fix the surrounding components manually.
         </p>
       </template>
     </template>

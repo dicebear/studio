@@ -9,12 +9,7 @@ function migrateLegacyRange(v: unknown, key: RangeKey): RangeValue {
       return { min: v[0], max: v[1] };
     }
 
-    if (
-      v.length === 3 &&
-      typeof v[0] === 'number' &&
-      typeof v[1] === 'number' &&
-      typeof v[2] === 'number'
-    ) {
+    if (v.length === 3 && typeof v[0] === 'number' && typeof v[1] === 'number' && typeof v[2] === 'number') {
       return { min: v[0], max: v[1], step: v[2] };
     }
 
@@ -29,9 +24,7 @@ function migrateLegacyRange(v: unknown, key: RangeKey): RangeValue {
 }
 
 export function getComponentGroupSettings(frame: FrameNode, componentGroup: string): ComponentGroupSettings {
-  const stored = JSON.parse(
-    frame.getPluginData(`components/${componentGroup}/settings`) || '{}',
-  );
+  const stored = JSON.parse(frame.getPluginData(`components/${componentGroup}/settings`) || '{}');
 
   if ('offsetX' in stored && !('translateX' in stored)) {
     stored.translateX = stored.offsetX;

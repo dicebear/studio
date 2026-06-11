@@ -1,9 +1,4 @@
-import type {
-  ComponentGroupSettings,
-  DefinitionRange,
-  FrameSettings,
-  RangeValue,
-} from '../types';
+import type { ComponentGroupSettings, DefinitionRange, FrameSettings, RangeValue } from '../types';
 
 export function sanitizeFrameSettings(settings: FrameSettings): void {
   settings.packageName = settings.packageName.replace(/[^a-z0-9@\-\/]/gi, '');
@@ -70,11 +65,8 @@ function assignIfChanged<K extends 'rotation' | 'translateX' | 'translateY'>(
 
 export function sanitizeComponentSettings(settings: ComponentGroupSettings): void {
   const rawProbability = settings.probability;
-  const parsedProbability =
-    typeof rawProbability === 'number' ? rawProbability : parseInt(String(rawProbability), 10);
-  const nextProbability = Number.isNaN(parsedProbability)
-    ? null
-    : clamp(parsedProbability, 0, 100);
+  const parsedProbability = typeof rawProbability === 'number' ? rawProbability : parseInt(String(rawProbability), 10);
+  const nextProbability = Number.isNaN(parsedProbability) ? null : clamp(parsedProbability, 0, 100);
 
   if (settings.probability !== nextProbability) {
     settings.probability = nextProbability;

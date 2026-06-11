@@ -20,8 +20,7 @@ export async function applyNormalize(groupName: string, precision: number): Prom
     const { dx, dy } = plan.willTranslate;
 
     const sizeMismatch = (v: ComponentNode) =>
-      Math.abs(v.width - plan.targetWidth) > TOLERANCE ||
-      Math.abs(v.height - plan.targetHeight) > TOLERANCE;
+      Math.abs(v.width - plan.targetWidth) > TOLERANCE || Math.abs(v.height - plan.targetHeight) > TOLERANCE;
 
     let needsResize = false;
 
@@ -90,10 +89,7 @@ export async function applyNormalize(groupName: string, precision: number): Prom
       const newWidth = plan.targetWidth * inst.scaleX;
       const newHeight = plan.targetHeight * inst.scaleY;
 
-      if (
-        Math.abs(inst.node.width - newWidth) > TOLERANCE ||
-        Math.abs(inst.node.height - newHeight) > TOLERANCE
-      ) {
+      if (Math.abs(inst.node.width - newWidth) > TOLERANCE || Math.abs(inst.node.height - newHeight) > TOLERANCE) {
         try {
           inst.node.resizeWithoutConstraints(newWidth, newHeight);
         } catch {

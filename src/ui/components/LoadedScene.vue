@@ -14,9 +14,7 @@ const store = usePluginStore();
 
 const data = computed(() => store.data!);
 
-const isDefinition = computed(() =>
-  useDefinitionFile(data.value.frame.settings.dicebearVersion),
-);
+const isDefinition = computed(() => useDefinitionFile(data.value.frame.settings.dicebearVersion));
 
 const componentMenuEntries = computed(() => {
   const entries = Object.entries(data.value.components);
@@ -49,9 +47,7 @@ const componentMenuEntries = computed(() => {
 });
 
 const usedColorGroups = computed(() =>
-  Object.keys(data.value.colors).filter(
-    (name) => data.value.colors[name].isUsedByComponents,
-  ),
+  Object.keys(data.value.colors).filter((name) => data.value.colors[name].isUsedByComponents),
 );
 </script>
 
@@ -78,31 +74,17 @@ const usedColorGroups = computed(() =>
       </MenuItem>
     </div>
 
-    <div
-      v-if="usedColorGroups.length > 0 && isDefinition"
-      class="menu-wrapper"
-    >
+    <div v-if="usedColorGroups.length > 0 && isDefinition" class="menu-wrapper">
       <div class="menu-section">Colors</div>
-      <MenuItem
-        v-for="name in usedColorGroups"
-        :key="name"
-        kind="color"
-        :name="name"
-      >
+      <MenuItem v-for="name in usedColorGroups" :key="name" kind="color" :name="name">
         {{ name }}
       </MenuItem>
     </div>
   </div>
 
   <div :key="`${store.activeStageKind}:${store.activeStageName}`" class="right">
-    <ComponentGroupForm
-      v-if="store.activeStageKind === 'component'"
-      :component-group="store.activeStageName"
-    />
-    <ColorGroupForm
-      v-else-if="store.activeStageKind === 'color'"
-      :color-group="store.activeStageName"
-    />
+    <ComponentGroupForm v-if="store.activeStageKind === 'component'" :component-group="store.activeStageName" />
+    <ColorGroupForm v-else-if="store.activeStageKind === 'color'" :color-group="store.activeStageName" />
     <PackageForm v-else-if="store.activeStageKind === 'package'" />
     <LicenseForm v-else-if="store.activeStageKind === 'license'" />
     <HookForm v-else-if="store.activeStageKind === 'hook'" />

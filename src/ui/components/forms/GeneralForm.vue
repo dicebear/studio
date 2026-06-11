@@ -21,12 +21,7 @@ const shapeRenderings = ['auto', 'optimizeSpeed', 'crispEdges', 'geometricPrecis
     <InputText v-model="settings.title" fluid size="small" />
   </Field>
   <Field label="DiceBear version">
-    <Select
-      v-model="settings.dicebearVersion"
-      :options="versions"
-      fluid
-      size="small"
-    />
+    <Select v-model="settings.dicebearVersion" :options="versions" fluid size="small" />
   </Field>
   <Field label="Background Color">
     <Select
@@ -39,20 +34,9 @@ const shapeRenderings = ['auto', 'optimizeSpeed', 'crispEdges', 'geometricPrecis
     />
   </Field>
   <Field label="Shape Rendering">
-    <Select
-      v-model="settings.shapeRendering"
-      :options="shapeRenderings"
-      fluid
-      size="small"
-    />
+    <Select v-model="settings.shapeRendering" :options="shapeRenderings" fluid size="small" />
   </Field>
   <Field label="Precision">
-    <InputNumber
-      v-model="settings.precision"
-      :min="0"
-      :max="8"
-      fluid
-      size="small"
-    />
+    <InputNumber v-model="settings.precision" :min="0" :max="8" fluid size="small" />
   </Field>
 </template>

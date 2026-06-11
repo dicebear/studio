@@ -10,11 +10,7 @@ import ErrorScene from './ErrorScene.vue';
 const store = usePluginStore();
 
 const activeNormalizeGroup = computed(() => {
-  if (
-    store.type !== 'loaded' ||
-    store.activeStageKind !== 'component' ||
-    store.componentTab !== 'normalize'
-  ) {
+  if (store.type !== 'loaded' || store.activeStageKind !== 'component' || store.componentTab !== 'normalize') {
     return null;
   }
 
@@ -33,9 +29,7 @@ const normalizeData = computed(() => {
   return name ? store.normalize[name] : undefined;
 });
 
-const hasPendingNormalize = computed(() =>
-  normalizeData.value ? hasPendingChanges(normalizeData.value) : false,
-);
+const hasPendingNormalize = computed(() => (normalizeData.value ? hasPendingChanges(normalizeData.value) : false));
 
 function onExport() {
   postPluginMessage('export');
@@ -66,12 +60,7 @@ function onNormalize() {
         :disabled="!hasPendingNormalize"
         @click="onNormalize"
       />
-      <Button
-        label="Export"
-        size="small"
-        :disabled="store.type !== 'loaded'"
-        @click="onExport"
-      />
+      <Button label="Export" size="small" :disabled="store.type !== 'loaded'" @click="onExport" />
     </div>
   </div>
 </template>

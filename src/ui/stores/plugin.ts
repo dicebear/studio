@@ -1,23 +1,14 @@
 import { defineStore } from 'pinia';
 import { ref, watch } from 'vue';
 import { postPluginMessage } from '../utils/postPluginMessage';
-import {
-  sanitizeComponentSettings,
-  sanitizeFrameSettings,
-} from '../utils/sanitizeSettings';
+import { sanitizeComponentSettings, sanitizeFrameSettings } from '../utils/sanitizeSettings';
 import type { ExportData, NormalizeData } from '../types';
 
 export type SceneType = 'loading' | 'loaded' | 'error';
 
 export type ComponentTab = 'settings' | 'weights' | 'normalize';
 
-export type StageKind =
-  | 'general'
-  | 'package'
-  | 'license'
-  | 'hook'
-  | 'component'
-  | 'color';
+export type StageKind = 'general' | 'package' | 'license' | 'hook' | 'component' | 'color';
 
 type SettingsSnapshot = {
   frame: string;

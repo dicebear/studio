@@ -6,10 +6,7 @@ import { readNodeExportInfo } from '../utils/readNodeExportInfo';
 import { resolveComponentName } from '../utils/resolveComponentName';
 import { writeNodeExportInfo } from '../utils/writeNodeExportInfo';
 
-export async function calculateNodeExportInfo(
-  node: ComponentNode | FrameNode,
-  aliasesEnabled: boolean,
-) {
+export async function calculateNodeExportInfo(node: ComponentNode | FrameNode, aliasesEnabled: boolean) {
   const cloneComponent = figma.createComponent();
   const cloneComponentRectangle = figma.createRectangle();
 
@@ -46,11 +43,7 @@ export async function calculateNodeExportInfo(
         y: instanceNode.height / mainComponent.height,
       };
 
-      nodeExportInfo.componentGroup = resolveComponentName(
-        instanceNode,
-        mainComponent,
-        aliasesEnabled,
-      ).componentName;
+      nodeExportInfo.componentGroup = resolveComponentName(instanceNode, mainComponent, aliasesEnabled).componentName;
 
       const width = instanceNode.width;
       const height = instanceNode.height;
@@ -63,9 +56,7 @@ export async function calculateNodeExportInfo(
 
     // Figma flat boolean nodes when exporting. In doing so, ids and their information will be lost.
     // That's why we do it ourselves here, so Figma can't delete any information.
-    const booleanNodes = nodeClone
-      .findAllWithCriteria({ types: ['BOOLEAN_OPERATION'] })
-      .filter((n) => n.visible);
+    const booleanNodes = nodeClone.findAllWithCriteria({ types: ['BOOLEAN_OPERATION'] }).filter((n) => n.visible);
 
     for (const boNode of booleanNodes) {
       try {

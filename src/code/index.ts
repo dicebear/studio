@@ -17,7 +17,7 @@ figma.on('selectionchange', () =>
   processTask(async () => ({
     type: 'loaded',
     data: await getExport(),
-  }))
+  })),
 );
 
 function getNormalizePrecision(): number {
@@ -114,9 +114,7 @@ figma.ui.onmessage = async (msg) => {
       if (typeSplit[1] === 'instances') {
         const ids: string[] = msg.data?.ids ?? [];
         const resolved = await Promise.all(ids.map((id) => figma.getNodeByIdAsync(id)));
-        const nodes = resolved.filter(
-          (n): n is SceneNode => !!n && n.type !== 'PAGE' && n.type !== 'DOCUMENT',
-        );
+        const nodes = resolved.filter((n): n is SceneNode => !!n && n.type !== 'PAGE' && n.type !== 'DOCUMENT');
 
         if (nodes.length === 0) {
           break;

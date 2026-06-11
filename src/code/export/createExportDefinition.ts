@@ -111,7 +111,7 @@ export async function createExportDefinition(exportData: Export) {
   // Create definition
   const bodyContent = await createTemplateString(
     exportData,
-    (await figma.getNodeByIdAsync(exportData.frame.id)) as FrameNode
+    (await figma.getNodeByIdAsync(exportData.frame.id)) as FrameNode,
   );
   const bodyContentWithSvg = `<svg>${bodyContent}</svg>`;
 
@@ -148,6 +148,6 @@ export async function createExportDefinition(exportData: Export) {
       colors: colors,
     }),
     undefined,
-    2
+    2,
   );
 }

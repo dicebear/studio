@@ -6,16 +6,12 @@ const store = usePluginStore();
 
 <template>
   <div class="loader">
-    <ProgressSpinner
-      class="spinner"
-      style="width: 32px; height: 32px"
-      stroke-width="4"
-    />
+    <ProgressSpinner class="spinner" style="width: 32px; height: 32px" stroke-width="4" />
     <p class="title">Processing</p>
     <p class="hint">
       {{
         store.message ||
-          'This can take a while on large files. Please do not change the file until the process is complete.'
+        'This can take a while on large files. Please do not change the file until the process is complete.'
       }}
     </p>
   </div>

@@ -4,6 +4,6 @@ export function decodeNodeNameData(name: string): Map<string, string> {
       const [key, ...value] = val.split('=');
 
       return [key, value.join('=').replace(/\_\d+$/, '')];
-    })
+    }),
   );
 }

@@ -3,12 +3,7 @@ import { RotateCcw } from '@lucide/vue';
 </script>
 
 <template>
-  <Button
-    size="small"
-    severity="secondary"
-    v-tooltip="'Reset to default'"
-    class="field-reset field-toggle"
-  >
+  <Button size="small" severity="secondary" v-tooltip="'Reset to default'" class="field-reset field-toggle">
     <RotateCcw :size="14" />
   </Button>
 </template>

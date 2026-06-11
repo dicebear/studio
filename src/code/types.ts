@@ -96,7 +96,7 @@ export type DefinitionElement = {
   type: string;
   name?: string;
   value?: string;
-  attributes?: Record<string, string|{type: string; name: string}>;
+  attributes?: Record<string, string | { type: string; name: string }>;
   children?: DefinitionElement[];
 };
 
@@ -110,10 +110,13 @@ export type DefinitionComponentBase = {
     x?: DefinitionRange;
     y?: DefinitionRange;
   };
-  variants: Record<string, {
-    elements: DefinitionElement[];
-    weight?: number;
-  }>;
+  variants: Record<
+    string,
+    {
+      elements: DefinitionElement[];
+      weight?: number;
+    }
+  >;
 };
 
 export type DefinitionComponentAlias = {
@@ -122,8 +125,11 @@ export type DefinitionComponentAlias = {
 
 export type DefinitionComponents = Record<string, DefinitionComponentBase | DefinitionComponentAlias>;
 
-export type DefinitionColors = Record<string, {
-  values: string[];
-  notEqualTo?: string[];
-  contrastTo?: string;
-}>;
+export type DefinitionColors = Record<
+  string,
+  {
+    values: string[];
+    notEqualTo?: string[];
+    contrastTo?: string;
+  }
+>;

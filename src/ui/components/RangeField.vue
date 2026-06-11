@@ -5,9 +5,7 @@ import type { ComponentGroupSettings, RangeValue } from '../types';
 import FieldReset from './FieldReset.vue';
 
 type RangeKey = {
-  [K in keyof ComponentGroupSettings]: ComponentGroupSettings[K] extends RangeValue
-    ? K
-    : never;
+  [K in keyof ComponentGroupSettings]: ComponentGroupSettings[K] extends RangeValue ? K : never;
 }[keyof ComponentGroupSettings];
 
 const props = withDefaults(
@@ -44,21 +42,10 @@ const displayRange = computed<[number, number]>(() => {
   <div class="field">
     <div class="field-label">
       <span class="field-label-text">{{ label }}</span>
-      <FieldReset
-        v-if="target[optionKey] !== null"
-        @click="resetRangeField(optionKey)"
-      />
-      <span class="field-value">
-        {{ displayRange[0] }}{{ unit }} — {{ displayRange[1] }}{{ unit }}
-      </span>
+      <FieldReset v-if="target[optionKey] !== null" @click="resetRangeField(optionKey)" />
+      <span class="field-value"> {{ displayRange[0] }}{{ unit }} — {{ displayRange[1] }}{{ unit }} </span>
     </div>
-    <Slider
-      v-model="rangeVal"
-      :range="true"
-      :min="min"
-      :max="max"
-      :step="step"
-    />
+    <Slider v-model="rangeVal" :range="true" :min="min" :max="max" :step="step" />
     <label v-if="withStep" class="step-row">
       <span class="step-label">Step</span>
       <input

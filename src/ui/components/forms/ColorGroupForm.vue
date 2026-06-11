@@ -12,8 +12,7 @@ const settings = computed(() => store.data!.colors[props.colorGroup].settings);
 
 const otherUsedColorGroups = computed(() =>
   Object.keys(store.data!.colors).filter(
-    (name) =>
-      store.data!.colors[name].isUsedByComponents && name !== props.colorGroup,
+    (name) => store.data!.colors[name].isUsedByComponents && name !== props.colorGroup,
   ),
 );
 

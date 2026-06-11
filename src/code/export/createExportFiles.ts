@@ -143,7 +143,9 @@ export async function createExportFiles(exportData: Export) {
         continue;
       }
 
-      const componentNode = (await figma.getNodeByIdAsync(componentGroup.collection[componentName].id)) as ComponentNode;
+      const componentNode = (await figma.getNodeByIdAsync(
+        componentGroup.collection[componentName].id,
+      )) as ComponentNode;
 
       components[componentName] = await createTemplateString(exportData, componentNode);
     }
