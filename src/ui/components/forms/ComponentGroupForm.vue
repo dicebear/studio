@@ -94,7 +94,7 @@ watch(
       return;
     }
 
-    // Always re-fetch when entering the tab — Figma may have been edited
+    // Always re-fetch when entering the tab. Figma may have been edited
     // since the last prepare and stale cache would mislead the preview.
     fetchNormalize();
   },
@@ -138,7 +138,7 @@ function onRetry() {
   <div v-if="extendsGroup" class="alias-banner">
     <p>
       Alias of <strong>{{ extendsGroup }}</strong
-      >. Variants, dimensions, and transforms are inherited from the source — aliases have no own settings.
+      >. Variants, dimensions, and transforms are inherited from the source. Aliases have no own settings.
     </p>
     <p>
       This alias exists because at least one instance in Figma is renamed to <strong>{{ componentGroup }}</strong
@@ -272,7 +272,7 @@ function onRetry() {
             {{ formatNumber(normalizeData.targetWidth) }} ×
             {{ formatNumber(normalizeData.targetHeight) }}
           </strong>
-          — content-aware trim, instances are repositioned automatically so the visual stays put.
+          (content-aware trim). Instances are repositioned so the visual stays put.
         </p>
         <p v-if="groupTranslateActive" class="normalize-summary">
           All children shift by
@@ -320,7 +320,7 @@ function onRetry() {
           <strong>{{ normalizeData.lockedInstanceCount }}</strong> nested instance{{
             normalizeData.lockedInstanceCount === 1 ? '' : 's'
           }}
-          will be skipped — they live inside another component or auto-layout and Figma doesn't allow overriding their
+          will be skipped because they live inside another component or auto-layout and Figma doesn't allow overriding their
           position. Visuals there will shift; fix the surrounding components manually.
         </p>
       </template>
