@@ -25,6 +25,7 @@ export type RangeValue = DefinitionRange | null;
 export type ComponentGroupSettings = {
   defaults: Record<string, boolean>;
   weights: Record<string, number>;
+  tags: Record<string, string[]>;
   probability: number | null;
   rotation: RangeValue;
   scale: RangeValue;

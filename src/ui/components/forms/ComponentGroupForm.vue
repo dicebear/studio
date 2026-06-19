@@ -9,6 +9,7 @@ import FieldReset from '../FieldReset.vue';
 import RangeField from '../RangeField.vue';
 import ToggleGroup from '../ToggleGroup.vue';
 import WeightGroup from '../WeightGroup.vue';
+import TagsGroup from '../TagsGroup.vue';
 
 const props = defineProps<{ componentGroup: string }>();
 
@@ -67,15 +68,17 @@ function resetWeights(): void {
   }
 }
 
+const tagsKeys = computed(() => Object.keys(settings.value.tags));
+
 const tab = computed({
   get: () => {
-    if (store.componentTab === 'weights' && !isDefinition.value) {
+    if ((store.componentTab === 'weights' || store.componentTab === 'tags') && !isDefinition.value) {
       return 'settings';
     }
 
     return store.componentTab;
   },
-  set: (next: 'settings' | 'weights' | 'normalize') => {
+  set: (next: 'settings' | 'weights' | 'tags' | 'normalize') => {
     store.componentTab = next;
   },
 });
@@ -174,6 +177,9 @@ function onRetry() {
       >
         Weights
       </button>
+      <button v-if="isDefinition" type="button" class="tab" :class="{ active: tab === 'tags' }" @click="tab = 'tags'">
+        Tags
+      </button>
       <button type="button" class="tab" :class="{ active: tab === 'normalize' }" @click="tab = 'normalize'">
         Normalize
       </button>
@@ -254,6 +260,21 @@ function onRetry() {
           <FieldReset v-if="hasNonDefaultWeights" @click="resetWeights" />
         </div>
         <WeightGroup :values="settings.weights" :options="weightsKeys" />
+      </div>
+    </template>
+
+    <template v-else-if="tab === 'tags'">
+      <p class="weights-summary">
+        Tags describe variants so they can be filtered at render time (for example
+        <strong>mood:happy</strong> or <strong>hairLength:long</strong>). Each tag is
+        <strong>category</strong> or <strong>category:value</strong> in camelCase. Press Enter or comma to add one.
+      </p>
+
+      <div class="field">
+        <div class="field-label">
+          <span class="field-label-text">Tags</span>
+        </div>
+        <TagsGroup :values="settings.tags" :options="tagsKeys" />
       </div>
     </template>
 

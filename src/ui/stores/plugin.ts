@@ -6,7 +6,7 @@ import type { ExportData, NormalizeData } from '../types';
 
 export type SceneType = 'loading' | 'loaded' | 'error';
 
-export type ComponentTab = 'settings' | 'weights' | 'normalize';
+export type ComponentTab = 'settings' | 'weights' | 'tags' | 'normalize';
 
 export type StageKind = 'general' | 'package' | 'license' | 'hook' | 'component' | 'color';
 

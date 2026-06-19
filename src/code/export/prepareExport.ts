@@ -203,6 +203,7 @@ function ensureMasterGroupRegistered(
       ...settings,
       defaults: {},
       weights: {},
+      tags: {},
     },
     collection: {},
     width: 0,
@@ -220,6 +221,7 @@ function ensureMasterGroupRegistered(
 
     componentGroup.settings.defaults[componentName] = settings.defaults[componentName] ?? true;
     componentGroup.settings.weights[componentName] = settings.weights[componentName] ?? 1;
+    componentGroup.settings.tags[componentName] = settings.tags[componentName] ?? [];
 
     pending.push(component);
   }
