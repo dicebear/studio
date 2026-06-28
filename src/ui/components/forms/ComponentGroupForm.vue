@@ -266,7 +266,7 @@ function onRetry() {
     <template v-else-if="tab === 'tags'">
       <p class="weights-summary">
         Tags describe variants so they can be filtered at render time (for example
-        <strong>mood:happy</strong> or <strong>hairLength:long</strong>). Each tag is
+        <strong>mood:positive</strong> or <strong>hairLength:long</strong>). Each tag is
         <strong>category</strong> or <strong>category:value</strong> in camelCase. Press Enter or comma to add one.
       </p>
 

@@ -86,7 +86,7 @@ function onKeydown(name: string, event: KeyboardEvent): void {
           v-model="drafts[name]"
           type="text"
           class="tag-input"
-          :placeholder="(values[name]?.length ?? 0) === 0 ? 'mood:happy' : ''"
+          :placeholder="(values[name]?.length ?? 0) === 0 ? 'mood:positive' : ''"
           @keydown="onKeydown(name, $event)"
           @blur="commit(name)"
         />
