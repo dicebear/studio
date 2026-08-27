@@ -4,7 +4,7 @@ import { postPluginMessage } from '../utils/postPluginMessage';
 import { sanitizeComponentSettings, sanitizeFrameSettings } from '../utils/sanitizeSettings';
 import type { ExportData, NormalizeData } from '../types';
 
-export type SceneType = 'loading' | 'loaded' | 'error';
+export type SceneType = 'loading' | 'loaded' | 'error' | 'welcome';
 
 export type ComponentTab = 'settings' | 'weights' | 'tags' | 'normalize';
 
@@ -46,6 +46,7 @@ const usePluginStore = defineStore('plugin', () => {
   const normalizeErrors = ref<Record<string, string>>({});
   const componentTab = ref<ComponentTab>('settings');
   const message = ref<string>('');
+  const importWarnings = ref<string[]>([]);
   const activeStageKind = ref<StageKind>('general');
   const activeStageName = ref<string>('');
 
@@ -92,6 +93,7 @@ const usePluginStore = defineStore('plugin', () => {
     normalizeErrors,
     componentTab,
     message,
+    importWarnings,
     activeStageKind,
     activeStageName,
   };

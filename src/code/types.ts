@@ -135,3 +135,23 @@ export type DefinitionColors = Record<
     contrastTo?: string;
   }
 >;
+
+export type DefinitionMeta = {
+  license?: { name?: string; url?: string; text?: string };
+  creator?: { name?: string; url?: string };
+  source?: { name?: string; url?: string };
+};
+
+export type DefinitionFile = {
+  $schema?: string;
+  $comment?: string;
+  meta?: DefinitionMeta;
+  canvas: {
+    elements: DefinitionElement[];
+    width: number;
+    height: number;
+  };
+  attributes?: Record<string, string>;
+  components: DefinitionComponents;
+  colors?: DefinitionColors;
+};

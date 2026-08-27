@@ -43,6 +43,15 @@ async function handleMessage(event: MessageEvent) {
       store.message = message.data.message;
       break;
 
+    case 'welcome':
+      store.type = 'welcome';
+      store.message = '';
+      break;
+
+    case 'import:result':
+      store.importWarnings = message.data.warnings;
+      break;
+
     case 'export':
       if (message.data.files) {
         const blob = await createZip(message.data.files);

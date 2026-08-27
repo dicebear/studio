@@ -6,7 +6,11 @@ import { readNodeExportInfo } from '../utils/readNodeExportInfo';
 import { resolveComponentName } from '../utils/resolveComponentName';
 import { writeNodeExportInfo } from '../utils/writeNodeExportInfo';
 
-export async function calculateNodeExportInfo(node: ComponentNode | FrameNode, aliasesEnabled: boolean) {
+export async function calculateNodeExportInfo(
+  node: ComponentNode | FrameNode,
+  aliasesEnabled: boolean,
+  ignoreColorGroup?: string,
+) {
   const cloneComponent = figma.createComponent();
   const cloneComponentRectangle = figma.createRectangle();
 
@@ -24,9 +28,30 @@ export async function calculateNodeExportInfo(node: ComponentNode | FrameNode, a
     // For the export, clip-path must be set in Figma so that the viewport has the correct height and width.
     nodeClone.clipsContent = true;
 
+    if (ignoreColorGroup) {
+      for (const child of [...nodeClone.children]) {
+        const childColors = await getColorsByNode(child);
+        const fill = childColors.get('fill');
+        const stroke = childColors.get('stroke');
+
+        if (
+          (fill && getNameParts(fill.name).group === ignoreColorGroup) ||
+          (stroke && getNameParts(stroke.name).group === ignoreColorGroup)
+        ) {
+          child.remove();
+        }
+      }
+    }
+
     const allInstanceNodes = await findAllInstanceNodes(nodeClone);
 
     for (const { instance: instanceNode, mainComponent } of allInstanceNodes) {
+      // Swapping an outer instance removes the instances nested inside it,
+      // e.g. a component that embeds another component group.
+      if (instanceNode.removed) {
+        continue;
+      }
+
       const nodeExportInfo = readNodeExportInfo(instanceNode);
 
       nodeExportInfo.matrix = {
@@ -107,7 +132,8 @@ export async function calculateNodeExportInfo(node: ComponentNode | FrameNode, a
     cloneComponent.remove();
 
     if (e && typeof e === 'object' && 'message' in e) {
-      throw new Error(`Error while exporting ${nodeClone.name}: ${(e as any).message}`);
+      // `node.name`, not the clone: the clone is already gone at this point.
+      throw new Error(`Error while exporting ${node.name}: ${(e as any).message}`);
     } else {
       throw e;
     }

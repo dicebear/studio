@@ -45,10 +45,16 @@ export async function applyNodeExportInfo(svg: string) {
     if (nodeExportInfo.fillColorGroup) {
       resultNode.attributes.fill = `{{colors.${nodeExportInfo.fillColorGroup}}}`;
 
+      // Figma bakes the bound style's paint opacity into fill-opacity. The
+      // palette value carries that alpha channel itself, keeping the attribute
+      // would apply it twice.
+      delete resultNode.attributes['fill-opacity'];
+
       // Remove fills from children
       for (const child of resultNode.children) {
         mapSvgsonNodes(child, (childNode) => {
           delete childNode.attributes.fill;
+          delete childNode.attributes['fill-opacity'];
 
           return childNode;
         });
@@ -58,10 +64,14 @@ export async function applyNodeExportInfo(svg: string) {
     if (nodeExportInfo.strokeColorGroup) {
       resultNode.attributes.stroke = `{{colors.${nodeExportInfo.strokeColorGroup}}}`;
 
+      // See fill-opacity above.
+      delete resultNode.attributes['stroke-opacity'];
+
       // Remove strokes from children
       for (const child of resultNode.children) {
         mapSvgsonNodes(child, (childNode) => {
           delete childNode.attributes.stroke;
+          delete childNode.attributes['stroke-opacity'];
 
           return childNode;
         });

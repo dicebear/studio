@@ -103,6 +103,8 @@ export type PluginMessage =
   | { type: 'normalize'; data: NormalizeData }
   | { type: 'normalize:error'; data: { groupName: string; message: string } }
   | { type: 'error'; data: { message: string } }
+  | { type: 'welcome' }
+  | { type: 'import:result'; data: { warnings: string[] } }
   | {
       type: 'export';
       data: { name: string; files?: Record<string, string>; content?: string };

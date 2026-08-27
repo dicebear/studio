@@ -11,8 +11,13 @@ import { cleanupNumericValues } from './cleanupNumericValues';
 export async function createTemplateString(exportData: Export, node: FrameNode | ComponentNode) {
   const aliasesEnabled = useDefinitionFile(exportData.frame.settings.dicebearVersion);
 
+  // Layers in the avatar frame that are bound to the configured background
+  // group stay out of the export: the renderer paints that background itself.
+  const ignoreColorGroup =
+    node.type === 'FRAME' ? exportData.frame.settings.backgroundColorGroupName || undefined : undefined;
+
   // Calculate the export info for the node and export to svg
-  let result = await calculateNodeExportInfo(node, aliasesEnabled);
+  let result = await calculateNodeExportInfo(node, aliasesEnabled, ignoreColorGroup);
 
   // Apply export info to svg
   result = await applyNodeExportInfo(result);
