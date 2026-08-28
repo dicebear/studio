@@ -1,5 +1,20 @@
 import type { ComponentGroupSettings, DefinitionRange, FrameSettings, RangeValue } from '../types';
 
+// A single variant tag: `category` or `category:value`, each segment camelCase.
+export const VARIANT_TAG_PATTERN = /^[a-z][a-zA-Z0-9]*(:[a-z][a-zA-Z0-9]*)?$/;
+
+// Schema bounds for a variant's tags (definition.json): at most 32 tags, each
+// up to 129 characters.
+export const MAX_VARIANT_TAGS = 32;
+const MAX_VARIANT_TAG_LENGTH = 129;
+
+// One tag is valid when it matches the grammar and stays within the length
+// bound. Shared with the authoring UI so the chip input and the sanitizer use
+// the same rule.
+export function isValidVariantTag(tag: string): boolean {
+  return tag.length <= MAX_VARIANT_TAG_LENGTH && VARIANT_TAG_PATTERN.test(tag);
+}
+
 export function sanitizeFrameSettings(settings: FrameSettings): void {
   settings.packageName = settings.packageName.replace(/[^a-z0-9@\-\/]/gi, '');
   settings.packageVersion = settings.packageVersion.replace(/[^0-9\.]/gi, '');
@@ -85,6 +100,43 @@ export function sanitizeComponentSettings(settings: ComponentGroupSettings): voi
 
     if (weights[key] !== next) {
       weights[key] = next;
+    }
+  }
+
+  // Keep authored variant tags schema-valid: a valid token, unique, capped per
+  // variant. No `!` prefix. The exclusion form exists only in the render-option
+  // filter, not the data.
+  const tags = settings.tags;
+
+  for (const key of Object.keys(tags)) {
+    const raw = tags[key];
+
+    // The common case is an already-valid (often empty) list. Skip it without
+    // allocating a scratch Set and array, matching the weights loop above.
+    if (Array.isArray(raw) && raw.length === 0) {
+      continue;
+    }
+
+    const seen = new Set<string>();
+    const next: string[] = [];
+
+    if (Array.isArray(raw)) {
+      for (const tag of raw) {
+        if (typeof tag === 'string' && isValidVariantTag(tag) && !seen.has(tag)) {
+          seen.add(tag);
+          next.push(tag);
+
+          if (next.length === MAX_VARIANT_TAGS) {
+            break;
+          }
+        }
+      }
+    }
+
+    // `next` is `raw` with invalid or duplicate entries dropped, so equal
+    // lengths mean nothing changed.
+    if (!Array.isArray(raw) || raw.length !== next.length) {
+      tags[key] = next;
     }
   }
 }

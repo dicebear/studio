@@ -46,6 +46,7 @@ export function getComponentGroupSettings(frame: FrameNode, componentGroup: stri
   return {
     defaults: {},
     weights: {},
+    tags: {},
     probability: null,
     rotation: null,
     scale: null,
