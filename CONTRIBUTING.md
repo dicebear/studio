@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for taking the time to contribute to the DiceBear Figma exporter.
+Thanks for taking the time to contribute to DiceBear Studio, the DiceBear plugin for Figma.
 
 ## Before you start
 
@@ -20,8 +20,8 @@ Thanks for taking the time to contribute to the DiceBear Figma exporter.
 ## Local setup
 
 ```sh
-git clone https://github.com/dicebear/exporter-plugin-for-figma.git
-cd exporter-plugin-for-figma
+git clone https://github.com/dicebear/studio.git
+cd studio
 npm install
 ```
 
@@ -31,7 +31,7 @@ npm install
 2. In the Figma desktop app, open **Menu → Plugins → Development → Import plugin from manifest…**.
 3. Select `public/manifest.json` from this repository.
 
-The plugin then shows up under **Plugins → Development → DiceBear Exporter**.
+The plugin then shows up under **Plugins → Development → DiceBear Studio**.
 
 ## Scripts
 
@@ -50,6 +50,7 @@ up the latest build.
 src/
 ├── code/        # Figma sandbox script (has access to the Figma API)
 │   ├── export/     # Builds the exported files or definition
+│   ├── import/     # Rebuilds a definition file as Figma pages
 │   ├── queries/    # Walks the Figma node tree
 │   ├── settings/   # Reads/writes plugin data on the frame
 │   ├── templates/  # Handlebars templates for the 9.x package export

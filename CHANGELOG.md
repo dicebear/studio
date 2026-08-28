@@ -1,9 +1,44 @@
 # Changelog
 
-All notable changes to the DiceBear Exporter for Figma will be documented in this file.
+All notable changes to DiceBear Studio for Figma will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [39] - 2026-08-27
+
+### Changed
+
+- Rename the plugin from DiceBear Exporter to DiceBear Studio. It now works in both directions between Figma and
+  definition files, so the old name no longer describes what it does.
+- Show a welcome screen while nothing is selected, instead of a red error box.
+- Reference `@dicebear/schema@1.5.1` in exported definition files (was `1.3.0`).
+
+### Added
+
+- Import definition files. The Import button reads a 10.x definition JSON and rebuilds it in an empty Figma file: one
+  component per variant, the palettes as color styles linked to the matching layers, the avatar frame, the group
+  settings, and the license and creator metadata. Exporting the result reproduces the definition. The plugin skips or
+  approximates what Figma cannot represent, CSS animations in `<style>` elements for example, and lists it as warnings.
+- Validate definition files before the import starts, so the plugin rejects an invalid file with a list of the
+  violations instead of failing halfway through. The check runs through `@dicebear/core`, which also catches broken
+  component aliases that the schema alone does not cover.
+- Keep the alpha of imported layers whose palette color carries its own `fill-opacity` or `stroke-opacity`. It becomes
+  the layer opacity and comes back out of the next export. Where the layer draws more than that one color, the plugin
+  drops it with a warning.
+- Ignore background layers on export. Layers bound to the color group named by the background option stay out of the
+  definition, DiceBear paints that background at render time. The import adds such a layer for styles with a
+  `background` palette.
+- Add a "Start here" guide next to the imported avatar frame, one card for building an avatar and one for editing the
+  style.
+- Generate a file cover during the import. A Thumbnail page holds a 1600x960 cover with the style name, the DiceBear
+  badge, and a staircase of sample avatars rendered with `@dicebear/core`. The cover becomes the file thumbnail.
+
+### Fixed
+
+- Keep the opacity of layers below a palette-bound layer in the export. Figma bakes the bound style's alpha into
+  `fill-opacity` and `stroke-opacity`, which the palette value already carries, so the export drops the attribute there.
+  The layers below it keep their own opacity, written relative to the palette alpha.
 
 ## [38] - 2026-06-03
 

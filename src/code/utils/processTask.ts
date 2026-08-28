@@ -1,4 +1,11 @@
-export function processTask(cb: () => Promise<{ type: string; data: any }>) {
+import { NoFrameSelectedError } from './getFrameSelection';
+
+/**
+ * `welcomeOnNoFrame` belongs to the tasks that only mirror the current
+ * selection. A task the user asked for, such as an export, has to report its
+ * failure instead of quietly showing the welcome scene.
+ */
+export function processTask(cb: () => Promise<{ type: string; data: any }>, welcomeOnNoFrame = false) {
   figma.ui.postMessage({
     type: 'loading',
     data: {},
@@ -8,6 +15,12 @@ export function processTask(cb: () => Promise<{ type: string; data: any }>) {
     try {
       figma.ui.postMessage(await cb());
     } catch (e: any) {
+      if (welcomeOnNoFrame && e instanceof NoFrameSelectedError) {
+        figma.ui.postMessage({ type: 'welcome' });
+
+        return;
+      }
+
       figma.ui.postMessage({
         type: 'error',
         data: {

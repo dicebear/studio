@@ -1,5 +1,8 @@
+import './utils/polyfills';
 import { getFrameSelection } from './utils/getFrameSelection';
 import { getExport, invalidateExportCache } from './export/exportCache';
+import { importDefinition } from './import/importDefinition';
+import { DefinitionFile } from './types';
 import { processTask } from './utils/processTask';
 import { setComponentGroupSettings } from './settings/setComponentGroupSettings';
 import { setFrameSettings } from './settings/setFrameSettings';
@@ -13,12 +16,23 @@ figma.showUI(__html__, { width: 720, height: 400 });
 
 figma.skipInvisibleInstanceChildren = true;
 
-figma.on('selectionchange', () =>
-  processTask(async () => ({
-    type: 'loaded',
-    data: await getExport(),
-  })),
-);
+// The import changes pages and the selection itself. Reacting to those events
+// would race the import's own result message.
+let importInProgress = false;
+
+figma.on('selectionchange', () => {
+  if (importInProgress) {
+    return;
+  }
+
+  processTask(
+    async () => ({
+      type: 'loaded',
+      data: await getExport(),
+    }),
+    true,
+  );
+});
 
 function getNormalizePrecision(): number {
   return getFrameSettings(getFrameSelection(), []).precision;
@@ -53,10 +67,13 @@ figma.ui.onmessage = async (msg) => {
 
   switch (typeSplit[0]) {
     case 'init':
-      processTask(async () => ({
-        type: 'loaded',
-        data: await getExport(),
-      }));
+      processTask(
+        async () => ({
+          type: 'loaded',
+          data: await getExport(),
+        }),
+        true,
+      );
       break;
 
     case 'set':
@@ -83,6 +100,24 @@ figma.ui.onmessage = async (msg) => {
         type: 'export',
         data: await createExport(),
       }));
+      break;
+
+    case 'import':
+      importInProgress = true;
+
+      processTask(async () => {
+        try {
+          const { definition, name } = msg.data as { definition: DefinitionFile; name: string };
+          const warnings = await importDefinition(definition, name);
+
+          invalidateExportCache();
+          figma.ui.postMessage({ type: 'import:result', data: { warnings } });
+
+          return { type: 'loaded', data: await getExport() };
+        } finally {
+          importInProgress = false;
+        }
+      });
       break;
 
     case 'prepare':

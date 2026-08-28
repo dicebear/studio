@@ -1,4 +1,4 @@
-import { parse, stringify } from 'svgson';
+import { parse, stringify, type INode } from 'svgson';
 
 import { readNodeExportInfo } from '../utils/readNodeExportInfo';
 import { writeNodeExportInfo } from '../utils/writeNodeExportInfo';
@@ -45,27 +45,21 @@ export async function applyNodeExportInfo(svg: string) {
     if (nodeExportInfo.fillColorGroup) {
       resultNode.attributes.fill = `{{colors.${nodeExportInfo.fillColorGroup}}}`;
 
-      // Remove fills from children
-      for (const child of resultNode.children) {
-        mapSvgsonNodes(child, (childNode) => {
-          delete childNode.attributes.fill;
+      // Figma bakes the bound style's paint opacity into fill-opacity. The
+      // palette value carries that alpha channel itself, keeping the attribute
+      // would apply it twice.
+      delete resultNode.attributes['fill-opacity'];
 
-          return childNode;
-        });
-      }
+      passPaintToChildren(resultNode, 'fill', nodeExportInfo.fillColorAlpha ?? 1);
     }
 
     if (nodeExportInfo.strokeColorGroup) {
       resultNode.attributes.stroke = `{{colors.${nodeExportInfo.strokeColorGroup}}}`;
 
-      // Remove strokes from children
-      for (const child of resultNode.children) {
-        mapSvgsonNodes(child, (childNode) => {
-          delete childNode.attributes.stroke;
+      // See fill-opacity above.
+      delete resultNode.attributes['stroke-opacity'];
 
-          return childNode;
-        });
-      }
+      passPaintToChildren(resultNode, 'stroke', nodeExportInfo.strokeColorAlpha ?? 1);
     }
 
     if (nodeExportInfo.scale) {
@@ -100,4 +94,42 @@ export async function applyNodeExportInfo(svg: string) {
   normalizeFilterPrimitiveIds(svgNode);
 
   return stringify(svgNode);
+}
+
+/**
+ * Hands the palette color down to the descendants of a bound node by dropping
+ * their own paint. Their `*-opacity` is a value of their own, unlike the one on
+ * the bound node, so it survives: in Figma it is absolute, while the inherited
+ * color already carries the style's alpha, so the attribute becomes the share
+ * the descendant adds on top of it. A descendant more opaque than the palette
+ * value cannot be written that way and keeps the paint it came with.
+ */
+function passPaintToChildren(node: INode, channel: 'fill' | 'stroke', alpha: number): void {
+  const opacityAttribute = `${channel}-opacity`;
+  const groupKey = channel === 'fill' ? 'fillColorGroup' : 'strokeColorGroup';
+
+  for (const child of node.children) {
+    // A descendant bound to a palette of its own brings that palette's alpha
+    // along and is rewritten when the walk reaches it.
+    if (readNodeExportInfo(child)[groupKey]) {
+      continue;
+    }
+
+    const own = child.attributes[opacityAttribute];
+    const share = (own === undefined ? 1 : Number(own)) / alpha;
+
+    if (false === Number.isFinite(share) || share > 1) {
+      continue;
+    }
+
+    delete child.attributes[channel];
+
+    if (share === 1) {
+      delete child.attributes[opacityAttribute];
+    } else {
+      child.attributes[opacityAttribute] = String(share);
+    }
+
+    passPaintToChildren(child, channel, alpha);
+  }
 }

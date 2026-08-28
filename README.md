@@ -1,4 +1,4 @@
-# DiceBear Exporter for Figma
+# DiceBear Studio
 
 A Figma plugin that turns a Figma frame of components and color styles into a [DiceBear](https://www.dicebear.com)
 avatar style you can drop straight into your app.
@@ -7,9 +7,12 @@ avatar style you can drop straight into your app.
   [style definition](https://www.dicebear.com/specification/definition-schema/).
 - For DiceBear **9.x** it exports a zip containing a full npm package (sources, tests, `package.json`, `README`,
   license).
+- The Import button works in the other direction: it rebuilds a 10.x definition file inside an empty Figma file, with
+  one component per variant, the palettes as color styles, a generated file thumbnail, and a "Start here" guide next to
+  the avatar frame.
 
 The plugin is published on the Figma Community:
-[DiceBear Exporter](https://www.figma.com/community/plugin/1005765655729342787).
+[DiceBear Studio](https://www.figma.com/community/plugin/1005765655729342787).
 
 ## Using the plugin
 
@@ -18,12 +21,12 @@ the export: [Create an avatar style with Figma](https://www.dicebear.com/guides/
 
 ## Contributing
 
-See [CONTRIBUTING.md](https://github.com/dicebear/exporter-plugin-for-figma/blob/main/CONTRIBUTING.md) for local
-development, build scripts, and how to load the plugin in Figma from source.
+See [CONTRIBUTING.md](https://github.com/dicebear/studio/blob/main/CONTRIBUTING.md) for local development, build
+scripts, and how to load the plugin in Figma from source.
 
 ## License
 
-[MIT](https://github.com/dicebear/exporter-plugin-for-figma/blob/main/LICENSE).
+[MIT](https://github.com/dicebear/studio/blob/main/LICENSE).
 
 ## Sponsors
 

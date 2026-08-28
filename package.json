@@ -1,5 +1,5 @@
 {
-  "name": "@dicebear/figma-exporter",
+  "name": "@dicebear/studio",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -16,6 +16,7 @@
     "type-check": "vue-tsc --noEmit"
   },
   "dependencies": {
+    "@dicebear/core": "^10.7.0",
     "@lucide/vue": "^1.11.0",
     "@primeuix/themes": "^2.0.3",
     "change-case": "^5.4.4",

@@ -1,3 +1,14 @@
+/**
+ * Thrown when nothing usable is selected. The UI shows the welcome scene for
+ * this case instead of an error.
+ */
+export class NoFrameSelectedError extends Error {
+  constructor() {
+    super('Please select a layer inside a square frame.');
+    this.name = 'NoFrameSelectedError';
+  }
+}
+
 export function getFrameSelection() {
   const { selection } = figma.currentPage;
 
@@ -8,7 +19,7 @@ export function getFrameSelection() {
   }
 
   if (!current || current.type !== 'FRAME' || current.width !== current.height) {
-    throw new Error('Please select a layer inside a square frame.');
+    throw new NoFrameSelectedError();
   }
 
   return current;
