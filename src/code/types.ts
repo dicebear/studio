@@ -90,6 +90,13 @@ export type NodeExportInfo = {
   };
   fillColorGroup?: string;
   strokeColorGroup?: string;
+  /**
+   * Alpha of the bound paint, written only when the style is translucent. The
+   * palette value carries that same alpha, so a descendant that inherits the
+   * color has to have its own opacity measured against it.
+   */
+  fillColorAlpha?: number;
+  strokeColorAlpha?: number;
   componentGroup?: string;
 };
 
@@ -151,7 +158,7 @@ export type DefinitionFile = {
     width: number;
     height: number;
   };
-  attributes?: Record<string, string>;
-  components: DefinitionComponents;
+  attributes?: Record<string, string | { type: string; name: string }>;
+  components?: DefinitionComponents;
   colors?: DefinitionColors;
 };

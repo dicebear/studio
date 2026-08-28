@@ -50,6 +50,7 @@ up the latest build.
 src/
 ├── code/        # Figma sandbox script (has access to the Figma API)
 │   ├── export/     # Builds the exported files or definition
+│   ├── import/     # Rebuilds a definition file as Figma pages
 │   ├── queries/    # Walks the Figma node tree
 │   ├── settings/   # Reads/writes plugin data on the frame
 │   ├── templates/  # Handlebars templates for the 9.x package export

@@ -28,21 +28,6 @@ export async function calculateNodeExportInfo(
     // For the export, clip-path must be set in Figma so that the viewport has the correct height and width.
     nodeClone.clipsContent = true;
 
-    if (ignoreColorGroup) {
-      for (const child of [...nodeClone.children]) {
-        const childColors = await getColorsByNode(child);
-        const fill = childColors.get('fill');
-        const stroke = childColors.get('stroke');
-
-        if (
-          (fill && getNameParts(fill.name).group === ignoreColorGroup) ||
-          (stroke && getNameParts(stroke.name).group === ignoreColorGroup)
-        ) {
-          child.remove();
-        }
-      }
-    }
-
     const allInstanceNodes = await findAllInstanceNodes(nodeClone);
 
     for (const { instance: instanceNode, mainComponent } of allInstanceNodes) {
@@ -97,15 +82,39 @@ export async function calculateNodeExportInfo(
     const allNodesWithColor = await findAllNodesWithColor(nodeClone);
 
     for (const colorNode of allNodesWithColor) {
+      // A parent bound to the ignored group may already have taken this node
+      // with it.
+      if (colorNode.removed) {
+        continue;
+      }
+
       const nodeExportInfo = readNodeExportInfo(colorNode);
       const nodeColors = await getColorsByNode(colorNode);
 
-      if (nodeColors.has('fill')) {
-        nodeExportInfo.fillColorGroup = getNameParts(nodeColors.get('fill')!.name).group;
+      const fillStyle = nodeColors.get('fill');
+      const strokeStyle = nodeColors.get('stroke');
+
+      if (ignoreColorGroup) {
+        // Layers bound to the background group stay out of the export at any
+        // depth, the renderer paints that background itself.
+        if (
+          (fillStyle && getNameParts(fillStyle.name).group === ignoreColorGroup) ||
+          (strokeStyle && getNameParts(strokeStyle.name).group === ignoreColorGroup)
+        ) {
+          colorNode.remove();
+
+          continue;
+        }
       }
 
-      if (nodeColors.has('stroke')) {
-        nodeExportInfo.strokeColorGroup = getNameParts(nodeColors.get('stroke')!.name).group;
+      if (fillStyle) {
+        nodeExportInfo.fillColorGroup = getNameParts(fillStyle.name).group;
+        nodeExportInfo.fillColorAlpha = getPaintAlpha(fillStyle);
+      }
+
+      if (strokeStyle) {
+        nodeExportInfo.strokeColorGroup = getNameParts(strokeStyle.name).group;
+        nodeExportInfo.strokeColorAlpha = getPaintAlpha(strokeStyle);
       }
 
       writeNodeExportInfo(colorNode, nodeExportInfo);
@@ -138,4 +147,14 @@ export async function calculateNodeExportInfo(
       throw e;
     }
   }
+}
+
+/**
+ * Alpha of a color style's paint, or undefined when the paint is opaque. The
+ * export info travels inside the node id, so the common case stays out of it.
+ */
+function getPaintAlpha(style: PaintStyle): number | undefined {
+  const opacity = (style.paints[0] as SolidPaint).opacity ?? 1;
+
+  return opacity === 1 ? undefined : opacity;
 }

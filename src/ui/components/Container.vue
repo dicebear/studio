@@ -84,7 +84,9 @@ async function onImportFile(event: Event) {
   store.message = '';
 
   postPluginMessage('import', {
-    name: file.name.replace(/\.json$/i, ''),
+    // The file name becomes the style title, so a `.min.json` download does not
+    // turn into a style called "bottts.min".
+    name: file.name.replace(/(\.min)?\.json$/i, ''),
     definition,
   });
 }

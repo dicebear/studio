@@ -26,11 +26,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   per-reference colors, is skipped or approximated and listed as warnings after the import. Components without any
   visible content, such as the CSS animation components of the animated styles, are left out entirely.
 - Validate definition files against the DiceBear definition schema before the import starts. Invalid files are rejected
-  with a list of the schema violations instead of failing halfway through.
+  with a list of the schema violations instead of failing halfway through. The check runs through `@dicebear/core`, so
+  the plugin rejects what the renderer rejects, including broken component aliases that the schema alone does not catch.
+- Keep the alpha of imported layers whose palette color comes with its own `fill-opacity` or `stroke-opacity`. Binding a
+  layer to a color style replaces its whole paint, so the alpha moves to the layer opacity, which dims the layer by the
+  same amount and comes back out of the next export. Where the layer draws more than that one color, a second paint or
+  nested content for example, the alpha would spill onto it and is dropped with a warning instead.
 - Ignore background layers on export. When the background option names a color group, layers in the avatar frame that
   are bound to one of that group's color styles stay out of the export, DiceBear paints that background at render time.
   A style file can now show its avatar on a real background, and the import adds such a layer for styles with a
   `background` palette.
+- Add a "Start here" guide next to the imported avatar frame. One card walks people who only want an avatar through
+  swapping variants and recoloring layers, the other points at the Components page and the export.
 - Generate a file cover during the import. A new Thumbnail page holds a 1600x960 cover that follows the layout of the
   existing DiceBear style files: the style name and the DiceBear badge on the left, a staircase of sample avatars on the
   right. The sample avatars are rendered with `@dicebear/core`, so they show exactly what the style produces:
@@ -40,9 +47,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
-- Strip the `fill-opacity` and `stroke-opacity` attributes Figma bakes into the SVG export when the bound color style
-  has a paint opacity below 1. Palette values with an alpha channel, such as the `shade` palette of `cameo`, carry the
-  alpha themselves, so the baked attribute applied it a second time in the exported definition.
+- Keep the opacity of layers below a palette-bound layer in the export. Figma bakes the bound style's paint opacity into
+  `fill-opacity` and `stroke-opacity`, and a palette value with an alpha channel, such as the `shade` palette of
+  `cameo`, carries that alpha itself, so on the bound layer the attribute applied it twice and is dropped. The layers
+  below it have an opacity of their own, a shading stroke at 30% for example, and used to be dropped along with it. That
+  value is now written relative to the palette alpha, so it survives the export at its intended strength.
 
 ## [38] - 2026-06-03
 

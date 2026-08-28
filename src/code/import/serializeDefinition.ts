@@ -25,7 +25,6 @@ export type SerializedSvg = {
 export type DefinitionSerializer = {
   sentinelByColorGroup: Map<string, string>;
   usedColorGroups: Set<string>;
-  placeholderFill: string;
   /** Marks `currentColor` layers whose color is set per reference. */
   currentColorSentinel: string;
   serialize(elements: DefinitionElement[], width: number, height: number, scope: string): SerializedSvg;
@@ -119,18 +118,27 @@ function collectReservedHexes(definition: DefinitionFile): Set<string> {
 }
 
 /**
+ * Reads a key that comes from the definition file. A plain property access
+ * would walk the prototype chain, and the schema allows names such as
+ * `toString` or `constructor`.
+ */
+function own<T>(collection: Record<string, T> | undefined, key: string): T | undefined {
+  return collection && Object.prototype.hasOwnProperty.call(collection, key) ? collection[key] : undefined;
+}
+
+/**
  * Resolves a component reference to the name of a non-alias component, or null
  * when the reference cannot be resolved.
  */
-export function resolveMasterName(components: DefinitionComponents, name: string): string | null {
-  const entry = components[name];
+export function resolveMasterName(components: DefinitionComponents | undefined, name: string): string | null {
+  const entry = own(components, name);
 
   if (!entry) {
     return null;
   }
 
   if ('extends' in entry) {
-    const master = components[entry.extends];
+    const master = own(components, entry.extends);
 
     return master && !('extends' in master) ? entry.extends : null;
   }
@@ -288,6 +296,7 @@ export function createDefinitionSerializer(
 
   const serializeComponentReference = (
     element: DefinitionElement,
+    inherited: ColorContext,
     scope: string,
     refs: PreparedRef[],
     hidden: boolean,
@@ -301,7 +310,7 @@ export function createDefinitionSerializer(
       return '';
     }
 
-    const master = definition.components[masterName] as DefinitionComponentBase;
+    const master = own(definition.components, masterName) as DefinitionComponentBase;
     const attributes = element.attributes ?? {};
     const transformParts: string[] = [];
     const transform = attributes.transform;
@@ -326,7 +335,7 @@ export function createDefinitionSerializer(
 
     if (colorRaw !== undefined) {
       if (isColorReference(colorRaw)) {
-        if (definition.colors?.[colorRaw.name]) {
+        if (own(definition.colors, colorRaw.name)) {
           color = { group: colorRaw.name };
           usedColorGroups.add(colorRaw.name);
         } else {
@@ -337,6 +346,13 @@ export function createDefinitionSerializer(
       } else if (!isReferenceObject(colorRaw)) {
         color = { value: String(colorRaw) };
       }
+    } else if (inherited.group !== undefined) {
+      // A `color` on an ancestor reaches the referenced component's
+      // `currentColor` layers at render time, so the reference has to carry it.
+      color = { group: inherited.group };
+      usedColorGroups.add(inherited.group);
+    } else if (inherited.value !== undefined) {
+      color = { value: inherited.value };
     }
 
     let opacityAttribute = '';
@@ -403,7 +419,7 @@ export function createDefinitionSerializer(
     }
 
     if (element.type === 'component') {
-      return serializeComponentReference(element, scope, refs, hidden);
+      return serializeComponentReference(element, inherited, scope, refs, hidden);
     }
 
     if (element.name === 'style') {
@@ -444,10 +460,14 @@ export function createDefinitionSerializer(
 
   const serialize = (elements: DefinitionElement[], width: number, height: number, scope: string): SerializedSvg => {
     const refs: PreparedRef[] = [];
+    const rootRaw = (definition.attributes ?? {}) as Record<string, string | ReferenceObject>;
+    // The root attributes carry a `color` down to every element below, the same
+    // way an element's own `color` does.
+    const rootContext = resolveColorContext(rootRaw, {});
 
     sawVisible = false;
 
-    const content = serializeElements(elements, {}, scope, refs, false);
+    const content = serializeElements(elements, rootContext, scope, refs, false);
 
     // Content without a single visible element, such as the marker groups and
     // permanently transparent overlays of the CSS animation components, would
@@ -458,12 +478,16 @@ export function createDefinitionSerializer(
 
     let rootAttributes = '';
 
-    for (const [key, value] of Object.entries(definition.attributes ?? {})) {
+    for (const [key, raw] of Object.entries(rootRaw)) {
       if (key === 'width' || key === 'height' || key === 'viewBox' || key === 'xmlns') {
         continue;
       }
 
-      rootAttributes += ` ${key}="${escapeXml(String(value))}"`;
+      const value = resolveAttributeValue(key, raw, rootContext, scope);
+
+      if (value !== null) {
+        rootAttributes += ` ${key}="${escapeXml(value)}"`;
+      }
     }
 
     return {
@@ -477,7 +501,6 @@ export function createDefinitionSerializer(
   return {
     sentinelByColorGroup,
     usedColorGroups,
-    placeholderFill,
     currentColorSentinel,
     serialize,
   };

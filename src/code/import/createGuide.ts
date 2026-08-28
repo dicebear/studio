@@ -2,7 +2,6 @@ import { loadFirstFont } from '../utils/loadFirstFont';
 import { BRAND_ACCENT, BRAND_BACKGROUND, LOGO_SVG } from './logo';
 
 export type GuideOptions = {
-  title: string;
   paintStylesByGroup: Map<string, PaintStyle[]>;
   warnOnce: (message: string) => void;
 };
@@ -309,6 +308,7 @@ export async function createGuide(page: PageNode, frame: FrameNode, options: Gui
   const groupY = group.y;
 
   if (scale !== 1) {
+    freezeAutoLayout(group);
     group.rescale(scale);
   }
 
@@ -317,4 +317,22 @@ export async function createGuide(page: PageNode, frame: FrameNode, options: Gui
   group.locked = true;
 
   return group;
+}
+
+/**
+ * Turns the finished composition into plain positions before it gets scaled.
+ * An auto-layout frame refuses to shrink below the sum of its padding, and
+ * `rescale` resizes the frame before it scales that padding, so a card that
+ * should end up smaller than 80 units stays at 80 with the scaled content in
+ * one corner. Canvas sizes below roughly 115 units all run into it. Nothing
+ * needs the layout engine once the cards are composed.
+ */
+function freezeAutoLayout(root: GroupNode): void {
+  for (const node of root.findAll((child) => child.type === 'FRAME')) {
+    const frame = node as FrameNode;
+
+    if (frame.layoutMode !== 'NONE') {
+      frame.layoutMode = 'NONE';
+    }
+  }
 }

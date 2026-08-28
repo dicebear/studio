@@ -50,6 +50,8 @@ async function postProgress(message: string): Promise<void> {
 function validateDefinition(definition: DefinitionFile): void {
   const canvas = definition?.canvas;
 
+  // `components` is optional in the schema: a definition may draw everything on
+  // the canvas.
   if (
     typeof definition !== 'object' ||
     definition === null ||
@@ -57,7 +59,7 @@ function validateDefinition(definition: DefinitionFile): void {
     canvas === null ||
     typeof canvas.width !== 'number' ||
     typeof canvas.height !== 'number' ||
-    typeof definition.components !== 'object'
+    (definition.components !== undefined && typeof definition.components !== 'object')
   ) {
     throw new Error('The selected file does not look like a DiceBear definition file.');
   }
@@ -68,18 +70,20 @@ function validateDefinition(definition: DefinitionFile): void {
 }
 
 async function ensureEmptyTarget(): Promise<void> {
+  // The style check needs no page loading, so it rejects a real style file
+  // before the expensive full document load.
+  const paintStyles = await figma.getLocalPaintStylesAsync();
+
+  if (paintStyles.some(isSupportedColor)) {
+    throw new Error('This file already contains color styles with group names. Import definitions into an empty file.');
+  }
+
   await figma.loadAllPagesAsync();
 
   const components = figma.root.findAllWithCriteria({ types: ['COMPONENT'] });
 
   if (components.some(isSupportedComponent)) {
     throw new Error('This file already contains component groups. Import definitions into an empty file.');
-  }
-
-  const paintStyles = await figma.getLocalPaintStylesAsync();
-
-  if (paintStyles.some(isSupportedColor)) {
-    throw new Error('This file already contains color styles with group names. Import definitions into an empty file.');
   }
 }
 
@@ -128,27 +132,111 @@ function solidPaintHex(paint: Paint): string | null {
   return `#${to255(paint.color.r)}${to255(paint.color.g)}${to255(paint.color.b)}`;
 }
 
-async function bindColorStyles(root: FrameNode, bindings: Map<string, string>): Promise<void> {
-  const nodes: SceneNode[] = [root, ...root.findAll(() => true)];
+type PaintBinding = {
+  /** Alpha of the paint before the binding replaces it. */
+  alpha: number;
+  bind: () => Promise<void>;
+};
+
+/**
+ * The paint alpha a layer can carry as its own opacity, or null when it has to
+ * be dropped. A layer bound to a color style takes the style's paint, alpha
+ * included, so `fill-opacity` and `stroke-opacity` have nowhere else to go.
+ * Layer opacity is applied after the color rather than to it, which makes it an
+ * exact stand-in, but it dims everything the layer draws. That only matches the
+ * original when the bound paints are all the layer has: they must share one
+ * alpha, nothing may paint beside them, and no nested content, effect or
+ * existing opacity may ride along.
+ */
+function getMovableAlpha(node: SceneNode, boundPaints: PaintBinding[], unboundPaints: number): number | null {
+  const alpha = boundPaints[0].alpha;
+
+  if (alpha === 1 || unboundPaints > 0 || boundPaints.some((paint) => paint.alpha !== alpha)) {
+    return null;
+  }
+
+  if (false === 'opacity' in node || node.opacity !== 1) {
+    return null;
+  }
+
+  if ('children' in node && node.children.length > 0) {
+    return null;
+  }
+
+  if ('effects' in node && node.effects.length > 0) {
+    return null;
+  }
+
+  return alpha;
+}
+
+async function bindColorStyles(
+  root: FrameNode,
+  bindings: Map<string, string>,
+  warnOnce: (message: string) => void,
+): Promise<void> {
+  const nodes: SceneNode[] = [root, ...root.findAll()];
+  const writes: Promise<void>[] = [];
+  let movedOpacity = false;
+  let droppedOpacity = false;
 
   for (const node of nodes) {
-    if ('fills' in node && Array.isArray(node.fills) && node.fills.length === 1) {
-      const hex = solidPaintHex(node.fills[0]);
+    const boundPaints: PaintBinding[] = [];
+    let unboundPaints = 0;
+
+    if ('fills' in node) {
+      const fills = node.fills;
+      const paint = Array.isArray(fills) && fills.length === 1 ? fills[0] : null;
+      const hex = paint ? solidPaintHex(paint) : null;
       const styleId = hex ? bindings.get(hex) : undefined;
 
-      if (styleId) {
-        await node.setFillStyleIdAsync(styleId);
+      if (paint && styleId) {
+        boundPaints.push({ alpha: paint.opacity ?? 1, bind: () => node.setFillStyleIdAsync(styleId) });
+      } else {
+        // Figma's mixed value is not an array and stands for paints this pass
+        // cannot read, so it counts as one that stays behind.
+        unboundPaints += Array.isArray(fills) ? fills.length : 1;
       }
     }
 
-    if ('strokes' in node && node.strokes.length === 1) {
-      const hex = solidPaintHex(node.strokes[0]);
+    if ('strokes' in node) {
+      const paint = node.strokes.length === 1 ? node.strokes[0] : null;
+      const hex = paint ? solidPaintHex(paint) : null;
       const styleId = hex ? bindings.get(hex) : undefined;
 
-      if (styleId) {
-        await node.setStrokeStyleIdAsync(styleId);
+      if (paint && styleId) {
+        boundPaints.push({ alpha: paint.opacity ?? 1, bind: () => node.setStrokeStyleIdAsync(styleId) });
+      } else {
+        unboundPaints += node.strokes.length;
       }
     }
+
+    if (boundPaints.length === 0) {
+      continue;
+    }
+
+    const movableAlpha = getMovableAlpha(node, boundPaints, unboundPaints);
+
+    if (movableAlpha !== null && 'opacity' in node) {
+      node.opacity = movableAlpha;
+      movedOpacity = true;
+    } else if (boundPaints.some((paint) => paint.alpha < 1)) {
+      droppedOpacity = true;
+    }
+
+    for (const paint of boundPaints) {
+      writes.push(paint.bind());
+    }
+  }
+
+  await Promise.all(writes);
+
+  if (droppedOpacity) {
+    warnOnce(
+      'Some layers combine a palette color with their own fill-opacity or stroke-opacity. ' +
+        (movedOpacity ? 'Where that alpha covers everything the layer draws, it became the layer opacity. ' : '') +
+        'The rest were imported fully opaque, a layer bound to a color style has no other place for it.',
+    );
   }
 }
 
@@ -195,7 +283,7 @@ async function paintSentinelLayers(
     return;
   }
 
-  for (const node of root.findAll(() => true)) {
+  for (const node of root.findAll()) {
     if (skipInstances && isInsideInstance(node, root)) {
       continue;
     }
@@ -279,7 +367,9 @@ async function replaceRefPlaceholders(
     // Insert before removing the placeholder, otherwise a group that only
     // holds the placeholder would dissolve.
     parent.insertChild(index, instance);
-    instance.resize(placeholder.width, placeholder.height);
+    // Figma rejects a resize below 0.01, which a reference scaled to zero would
+    // ask for.
+    instance.resize(Math.max(placeholder.width, 0.01), Math.max(placeholder.height, 0.01));
     instance.relativeTransform = placeholder.relativeTransform;
 
     if ('opacity' in placeholder) {
@@ -305,13 +395,13 @@ async function replaceRefPlaceholders(
 }
 
 function prepareComponents(
-  definition: DefinitionFile,
+  components: DefinitionComponents,
   serializer: DefinitionSerializer,
   warn: (message: string) => void,
 ): Map<string, PreparedGroup> {
   const prepared = new Map<string, PreparedGroup>();
 
-  for (const [groupName, entry] of Object.entries(definition.components)) {
+  for (const [groupName, entry] of Object.entries(components)) {
     if ('extends' in entry) {
       continue;
     }
@@ -445,7 +535,7 @@ function voteFallbackColors(allRefs: PreparedRef[], components: DefinitionCompon
  * children carry them.
  */
 function applyScaleConstraints(component: ComponentNode): void {
-  for (const node of component.findAll(() => true)) {
+  for (const node of component.findAll()) {
     // Constraints cannot be overridden inside an instance. The instance node
     // itself still gets them, it scales as a whole.
     if (isInsideInstance(node, component)) {
@@ -501,6 +591,10 @@ export async function importDefinition(definition: DefinitionFile, styleName: st
 
   figma.commitUndo();
 
+  // The pages the file already had. Only a fresh file's single empty default
+  // page is removed at the end, pages the user created stay.
+  const startPages = [...figma.root.children];
+  const components: DefinitionComponents = definition.components ?? {};
   const warnings: string[] = [];
   const warnedOnce = new Set<string>();
   const warn = (message: string) => warnings.push(message);
@@ -515,8 +609,8 @@ export async function importDefinition(definition: DefinitionFile, styleName: st
   // Everything is serialized before the first node is created. An error in
   // here then leaves the file untouched, while a half built file would be
   // rejected as non-empty on the next attempt.
-  const prepared = prepareComponents(definition, serializer, warn);
-  const order = sortGroupsByDependencies(prepared, definition.components);
+  const prepared = prepareComponents(components, serializer, warn);
+  const order = sortGroupsByDependencies(prepared, components);
 
   const canvas = definition.canvas;
   const canvasSerialized = serializer.serialize(canvas.elements ?? [], canvas.width, canvas.height, 'canvas');
@@ -542,14 +636,14 @@ export async function importDefinition(definition: DefinitionFile, styleName: st
     }
   }
 
-  const fallbackColors = voteFallbackColors(allRefs, definition.components);
+  const fallbackColors = voteFallbackColors(allRefs, components);
 
   const componentIndex = new Map<string, ComponentNode>();
   const componentsByGroup = new Map<string, ComponentNode[]>();
   const createdVariants = new Map<string, string[]>();
 
   const context: ImportContext = {
-    components: definition.components,
+    components,
     componentIndex,
     paintStylesByGroup,
     currentColorSentinel: serializer.currentColorSentinel,
@@ -586,7 +680,7 @@ export async function importDefinition(definition: DefinitionFile, styleName: st
       }
 
       componentsPage.appendChild(svgFrame);
-      await bindColorStyles(svgFrame, bindings);
+      await bindColorStyles(svgFrame, bindings, warnOnce);
       await replaceRefPlaceholders(
         svgFrame,
         variant.refs,
@@ -632,18 +726,30 @@ export async function importDefinition(definition: DefinitionFile, styleName: st
 
   await postProgress('Building the avatar frame');
 
+  let imported: FrameNode | null = null;
+
+  if (canvasSerialized.svg !== null) {
+    try {
+      imported = figma.createNodeFromSvg(canvasSerialized.svg);
+    } catch (e: any) {
+      // Aborting here would leave the components and color styles behind, and
+      // the next attempt would be rejected as non-empty.
+      warn(`canvas: Figma could not parse the SVG (${e.message}), the avatar frame was left empty.`);
+    }
+  }
+
   let frame: FrameNode;
 
-  if (canvasSerialized.svg === null) {
+  if (imported) {
+    frame = imported;
+    avatarPage.appendChild(frame);
+    await bindColorStyles(frame, bindings, warnOnce);
+    await replaceRefPlaceholders(frame, canvasSerialized.refs, context, 'canvas');
+  } else {
     frame = figma.createFrame();
     frame.resize(canvas.width, canvas.height);
     frame.fills = [];
     avatarPage.appendChild(frame);
-  } else {
-    frame = figma.createNodeFromSvg(canvasSerialized.svg);
-    avatarPage.appendChild(frame);
-    await bindColorStyles(frame, bindings);
-    await replaceRefPlaceholders(frame, canvasSerialized.refs, context, 'canvas');
   }
 
   await bindRemainingCurrentColor(fallbackColors, componentsByGroup, context);
@@ -653,7 +759,9 @@ export async function importDefinition(definition: DefinitionFile, styleName: st
   await paintSentinelLayers(frame, { paint: figma.util.solidPaint('#000000') }, context, true);
 
   const meta = definition.meta ?? {};
-  const title = meta.source?.name?.trim() || styleName;
+  // The file name, not `meta.source.name`: the source names the artwork the
+  // style is based on, which is a credit rather than the style's own name.
+  const title = styleName;
 
   frame.name = title;
   frame.x = 0;
@@ -684,6 +792,8 @@ export async function importDefinition(definition: DefinitionFile, styleName: st
 
   await postProgress('Writing settings');
 
+  const shapeRendering = definition.attributes?.['shape-rendering'];
+
   setFrameSettings(frame, {
     dicebearVersion: '10.x',
     title,
@@ -695,9 +805,9 @@ export async function importDefinition(definition: DefinitionFile, styleName: st
     source: meta.source?.url ?? '',
     licenseName: meta.license?.name ?? '',
     licenseUrl: meta.license?.url ?? '',
-    licenseText: '',
+    licenseText: meta.license?.text ?? '',
     backgroundColorGroupName: definition.colors?.background ? 'background' : '',
-    shapeRendering: definition.attributes?.['shape-rendering'] ?? 'auto',
+    shapeRendering: typeof shapeRendering === 'string' ? shapeRendering : 'auto',
     onPreCreateHook: '',
     onPostCreateHook: '',
     precision: 3,
@@ -705,7 +815,7 @@ export async function importDefinition(definition: DefinitionFile, styleName: st
   });
 
   for (const [groupName, variantNames] of createdVariants) {
-    const entry = definition.components[groupName] as DefinitionComponentBase;
+    const entry = components[groupName] as DefinitionComponentBase;
     const settings: ComponentGroupSettings = {
       defaults: {},
       weights: {},
@@ -765,23 +875,17 @@ export async function importDefinition(definition: DefinitionFile, styleName: st
   let guide: SceneNode | null = null;
 
   try {
-    guide = await createGuide(avatarPage, frame, { title, paintStylesByGroup, warnOnce });
+    guide = await createGuide(avatarPage, frame, { paintStylesByGroup, warnOnce });
   } catch (e: any) {
     warn(`The guide could not be created (${e.message}).`);
   }
 
   await figma.setCurrentPageAsync(avatarPage);
 
-  for (const pageNode of [...figma.root.children]) {
-    // Usually the empty default page the import started on.
-    if (
-      pageNode !== avatarPage &&
-      pageNode !== componentsPage &&
-      pageNode !== thumbnailPage &&
-      pageNode.children.length === 0
-    ) {
-      pageNode.remove();
-    }
+  // The empty default page a fresh file starts with. A file the user already
+  // set up keeps its pages, empty ones included.
+  if (startPages.length === 1 && startPages[0].children.length === 0) {
+    startPages[0].remove();
   }
 
   avatarPage.selection = [frame];

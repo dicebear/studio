@@ -25,10 +25,13 @@ figma.on('selectionchange', () => {
     return;
   }
 
-  processTask(async () => ({
-    type: 'loaded',
-    data: await getExport(),
-  }));
+  processTask(
+    async () => ({
+      type: 'loaded',
+      data: await getExport(),
+    }),
+    true,
+  );
 });
 
 function getNormalizePrecision(): number {
@@ -64,10 +67,13 @@ figma.ui.onmessage = async (msg) => {
 
   switch (typeSplit[0]) {
     case 'init':
-      processTask(async () => ({
-        type: 'loaded',
-        data: await getExport(),
-      }));
+      processTask(
+        async () => ({
+          type: 'loaded',
+          data: await getExport(),
+        }),
+        true,
+      );
       break;
 
     case 'set':

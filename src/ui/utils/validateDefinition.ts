@@ -1,38 +1,42 @@
-import Ajv, { type ValidateFunction } from 'ajv';
-import definitionSchema from '@dicebear/schema/definition.json';
+import { Style } from '@dicebear/core';
 
-let validator: ValidateFunction | null = null;
+type ValidationDetail = { instancePath?: string; message?: string };
 
-function getValidator(): ValidateFunction {
-  // The schema ships as draft-07 without external references, so a single
-  // compile covers every import.
-  validator ??= new Ajv({ allErrors: true, strict: false }).compile(definitionSchema);
+function getDetails(error: unknown): ValidationDetail[] | null {
+  const details = error && typeof error === 'object' ? (error as { details?: unknown }).details : undefined;
 
-  return validator;
+  return Array.isArray(details) ? (details as ValidationDetail[]) : null;
 }
 
 /**
- * Validates a parsed definition file against the DiceBear definition schema.
+ * Validates a parsed definition file. The check runs through `Style`, so the UI
+ * rejects exactly what the renderer would reject, down to the wording.
  * Returns a readable list of problems, empty when the file is valid.
  */
 export function validateDefinition(definition: unknown): string[] {
-  const validate = getValidator();
+  try {
+    new Style(definition);
 
-  if (validate(definition)) {
     return [];
-  }
+  } catch (error) {
+    const details = getDetails(error);
 
-  const seen = new Set<string>();
-  const problems: string[] = [];
-
-  for (const error of validate.errors ?? []) {
-    const message = `${error.instancePath || '/'} ${error.message ?? 'is invalid'}`;
-
-    if (!seen.has(message)) {
-      seen.add(message);
-      problems.push(message);
+    if (details === null) {
+      return [error instanceof Error ? error.message : 'is not a valid definition file'];
     }
-  }
 
-  return problems;
+    const seen = new Set<string>();
+    const problems: string[] = [];
+
+    for (const detail of details) {
+      const message = `${detail.instancePath || '/'} ${detail.message ?? 'is invalid'}`;
+
+      if (!seen.has(message)) {
+        seen.add(message);
+        problems.push(message);
+      }
+    }
+
+    return problems;
+  }
 }
