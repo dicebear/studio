@@ -257,7 +257,7 @@ export async function createGuide(page: PageNode, frame: FrameNode, options: Gui
   const buttonLabel = createText(fonts.heading, 19, BRAND_BACKGROUND, 'Read the full guide');
 
   button.appendChild(buttonLabel);
-  buttonLabel.hyperlink = { type: 'URL', value: 'https://www.dicebear.com/guides/create-an-avatar-style-with-figma/' };
+  buttonLabel.hyperlink = { type: 'URL', value: 'https://www.dicebear.com/create-styles/with-figma/' };
 
   // Tabs after the cards, so they sit on top of the card edge.
   addTab(buildCard, 'Just here for an avatar?');

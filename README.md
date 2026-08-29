@@ -4,7 +4,7 @@ A Figma plugin that turns a Figma frame of components and color styles into a [D
 avatar style you can drop straight into your app.
 
 - For DiceBear **10.x** it exports a single JSON
-  [style definition](https://www.dicebear.com/specification/definition-schema/).
+  [style definition](https://www.dicebear.com/create-styles/definition-schema/).
 - For DiceBear **9.x** it exports a zip containing a full npm package (sources, tests, `package.json`, `README`,
   license).
 - The Import button works in the other direction: it rebuilds a 10.x definition file inside an empty Figma file, with
@@ -17,10 +17,10 @@ The plugin is published on the Figma Community:
 ## Using the plugin
 
 The DiceBear docs have a walkthrough that covers how to set up the frame, name your components and color groups, and run
-the export: [Create an avatar style with Figma](https://www.dicebear.com/guides/create-an-avatar-style-with-figma/).
+the export: [Create an avatar style with Figma](https://www.dicebear.com/create-styles/with-figma/).
 
 The other direction has its own guide, from picking a definition file to exporting the style you made of it:
-[Edit an avatar style with Figma](https://www.dicebear.com/guides/edit-an-avatar-style-with-figma/).
+[Edit an avatar style with Figma](https://www.dicebear.com/create-styles/edit-a-style/).
 
 ## Contributing
 

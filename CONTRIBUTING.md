@@ -84,7 +84,7 @@ There are two output paths, selected by [`useDefinitionFile`](./src/code/utils/u
 DiceBear version chosen in the plugin:
 
 - **10.x**: a single JSON definition produced by `src/code/export/createExportDefinition.ts`. It follows the
-  [style definition schema](https://www.dicebear.com/specification/definition-schema/).
+  [style definition schema](https://www.dicebear.com/create-styles/definition-schema/).
 - **9.x**: a zip of Handlebars-rendered package files (sources, tests, `package.json`, README, license) produced by
   `src/code/export/createExportFiles.ts` from templates in `src/code/templates/`.
 

@@ -26,7 +26,7 @@
       </div>
     </div>
     <p class="guide">
-      <a href="https://www.dicebear.com/guides/create-an-avatar-style-with-figma/" target="_blank" rel="noopener">
+      <a href="https://www.dicebear.com/create-styles/with-figma/" target="_blank" rel="noopener">
         Read the guide
       </a>
     </p>
