@@ -19,6 +19,9 @@ The plugin is published on the Figma Community:
 The DiceBear docs have a walkthrough that covers how to set up the frame, name your components and color groups, and run
 the export: [Create an avatar style with Figma](https://www.dicebear.com/guides/create-an-avatar-style-with-figma/).
 
+The other direction has its own guide, from picking a definition file to exporting the style you made of it:
+[Edit an avatar style with Figma](https://www.dicebear.com/guides/edit-an-avatar-style-with-figma/).
+
 ## Contributing
 
 See [CONTRIBUTING.md](https://github.com/dicebear/studio/blob/main/CONTRIBUTING.md) for local development, build
