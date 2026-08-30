@@ -10,12 +10,57 @@ import { resolveComponentName } from '../utils/resolveComponentName';
 import { writeNodeExportInfo } from '../utils/writeNodeExportInfo';
 
 type PendingAnimationInfo = {
-  node: SceneNode;
+  /** The clone node, or null when its subtree could not be walked. */
+  node: SceneNode | null;
   /** The clone node's marker name, to re-resolve it if the proxy dies. */
   nodeName: string;
+  /** How many earlier entries carry the same name, to keep them apart. */
+  nameOccurrence: number;
   animations: unknown[];
   animKey: number;
 };
+
+function tick(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+/**
+ * Reads a node's children and retries once through a freshly resolved proxy.
+ * Figma has answered the first read on a just cloned subtree with an internal
+ * error ("Unknown id "" in createNode"), and a new handle for the same id
+ * reads it fine. Returns undefined when both attempts fail.
+ */
+async function readChildren(node: SceneNode): Promise<readonly SceneNode[] | undefined> {
+  try {
+    return (node as SceneNode & ChildrenMixin).children;
+  } catch {
+    let id: string | undefined;
+
+    try {
+      id = node.id;
+    } catch {
+      return undefined;
+    }
+
+    let fresh: BaseNode | null = null;
+
+    try {
+      fresh = await figma.getNodeByIdAsync(id);
+    } catch {
+      return undefined;
+    }
+
+    if (fresh === null || !('children' in fresh)) {
+      return undefined;
+    }
+
+    try {
+      return fresh.children as readonly SceneNode[];
+    } catch {
+      return undefined;
+    }
+  }
+}
 
 /**
  * Reads the manual keyframe tracks of the original subtree and returns the
@@ -32,12 +77,16 @@ type PendingAnimationInfo = {
  * whether `clone()` copies motion data is not part of Figma's documented
  * contract. Instance children belong to the main component and are exported
  * with its group, so the walk reads an instance's own tracks and stops.
+ *
+ * When the clone side of a subtree cannot be read at all, the walk carries on
+ * without it: the animations are still collected from the original and their
+ * clone nodes are resolved by marker name when the info is written.
  */
-function collectAnimationExportInfo(
+async function collectAnimationExportInfo(
   original: SceneNode,
   clone: SceneNode,
   warn: (message: string) => void,
-): PendingAnimationInfo[] {
+): Promise<PendingAnimationInfo[]> {
   const pending: PendingAnimationInfo[] = [];
 
   if (!isMotionAvailable(original)) {
@@ -45,8 +94,9 @@ function collectAnimationExportInfo(
   }
 
   let animKey = 0;
+  const nameCounts = new Map<string, number>();
 
-  const collectNode = (originalNode: SceneNode, cloneNode: SceneNode): void => {
+  const collectNode = async (originalNode: SceneNode, cloneNode: SceneNode | null): Promise<void> => {
     let rawTracks: Record<string, { keyframes?: unknown[] }> | undefined;
 
     try {
@@ -113,9 +163,15 @@ function collectAnimationExportInfo(
       }
 
       if (animation) {
+        const nodeName = cloneNode?.name ?? originalNode.name;
+        const nameOccurrence = nameCounts.get(nodeName) ?? 0;
+
+        nameCounts.set(nodeName, nameOccurrence + 1);
+
         pending.push({
           node: cloneNode,
-          nodeName: cloneNode.name,
+          nodeName,
+          nameOccurrence,
           animations: [animation],
           animKey: animKey++,
         });
@@ -126,28 +182,40 @@ function collectAnimationExportInfo(
       return;
     }
 
-    if ('children' in originalNode && 'children' in cloneNode) {
-      let originalChildren: readonly SceneNode[];
-      let cloneChildren: readonly SceneNode[];
+    if ('children' in originalNode && (cloneNode === null || 'children' in cloneNode)) {
+      const originalChildren = await readChildren(originalNode);
 
-      try {
-        originalChildren = originalNode.children;
-        cloneChildren = cloneNode.children;
-      } catch (e: any) {
-        warn(
-          `The children of "${originalNode.name}" could not be read (${e.message}); animations below it were not exported.`,
-        );
+      if (originalChildren === undefined) {
+        warn(`The children of "${originalNode.name}" could not be read; animations below it were not exported.`);
 
         return;
       }
 
-      for (let i = 0; i < Math.min(originalChildren.length, cloneChildren.length); i++) {
-        collectNode(originalChildren[i], cloneChildren[i]);
+      let cloneChildren: readonly SceneNode[] | undefined;
+
+      if (cloneNode !== null) {
+        cloneChildren = await readChildren(cloneNode);
+
+        if (cloneChildren === undefined) {
+          warn(
+            `The export copy of "${originalNode.name}" could not be read; the animations below it are placed by layer name.`,
+          );
+        }
+      }
+
+      for (let i = 0; i < originalChildren.length; i++) {
+        const cloneChild = cloneChildren === undefined ? null : cloneChildren[i];
+
+        if (cloneChildren !== undefined && cloneChild === undefined) {
+          break;
+        }
+
+        await collectNode(originalChildren[i], cloneChild ?? null);
       }
     }
   };
 
-  collectNode(original, clone);
+  await collectNode(original, clone);
 
   return pending;
 }
@@ -188,7 +256,13 @@ export async function calculateNodeExportInfo(
 
     if (aliasesEnabled) {
       phase = 'reading the animations';
-      pendingAnimationInfo = collectAnimationExportInfo(node, nodeClone, warn);
+
+      // One turn of the event loop before walking the fresh copy. Reading a
+      // deep clone in the same tick as `clone()` has come back as a
+      // Figma-internal error ("Unknown id "" in createNode").
+      await tick();
+
+      pendingAnimationInfo = await collectAnimationExportInfo(node, nodeClone, warn);
     }
 
     phase = 'finding the instances';
@@ -296,12 +370,32 @@ export async function calculateNodeExportInfo(
     // Last, when nothing can rename the clone nodes anymore. Swapping the
     // instance inside a single-child group makes Figma rebuild the group:
     // the collected proxy dies while a fresh group with the same name takes
-    // its place, so a dead reference is re-resolved by its marker name.
+    // its place, so a dead reference is re-resolved by its marker name. The
+    // same route carries the entries whose clone node was never known.
+    // Several layers may share a marker name, and both the walk and
+    // `findAll` run in document order, so the n-th entry of a name belongs to
+    // the n-th layer carrying it.
+    const nodesByName = new Map<string, SceneNode[]>();
+
     for (const entry of pendingAnimationInfo) {
       let target: SceneNode | null = entry.node;
+      let alive = false;
 
-      if (target.removed) {
-        target = nodeClone.findOne((candidate) => candidate.name === entry.nodeName);
+      try {
+        alive = target !== null && !target.removed;
+      } catch {
+        alive = false;
+      }
+
+      if (!alive) {
+        let candidates = nodesByName.get(entry.nodeName);
+
+        if (candidates === undefined) {
+          candidates = nodeClone.findAll((candidate) => candidate.name === entry.nodeName);
+          nodesByName.set(entry.nodeName, candidates);
+        }
+
+        target = candidates[entry.nameOccurrence] ?? candidates[0] ?? null;
       }
 
       if (!target) {
