@@ -6,7 +6,29 @@ export type InstanceMatch = {
 };
 
 export async function findAllInstanceNodes(node: ChildrenMixin): Promise<InstanceMatch[]> {
-  const instances = node.findAllWithCriteria({ types: ['INSTANCE'] });
+  // A manual walk instead of findAllWithCriteria: the walk stops at every
+  // instance and never materializes its internals. Nested instances are
+  // covered by their outer instance's swap anyway, and on a fresh clone of a
+  // frame whose instances reference motion components, touching those
+  // internals has crashed inside Figma (get_children: Unknown id "" in
+  // createNode).
+  const instances: InstanceNode[] = [];
+
+  const walk = (parent: ChildrenMixin): void => {
+    for (const child of parent.children) {
+      if (child.type === 'INSTANCE') {
+        instances.push(child);
+
+        continue;
+      }
+
+      if ('children' in child) {
+        walk(child);
+      }
+    }
+  };
+
+  walk(node);
 
   if (instances.length === 0) {
     return [];

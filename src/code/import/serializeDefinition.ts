@@ -1,3 +1,4 @@
+import { DefinitionAnimation } from '../animation/types';
 import { DefinitionComponentBase, DefinitionComponents, DefinitionElement, DefinitionFile } from '../types';
 
 export type PreparedRefColor = {
@@ -14,12 +15,21 @@ export type PreparedRef = {
   refName: string;
   /** The `color` the reference passes down for `currentColor` layers. */
   color?: PreparedRefColor;
+  /** Declarative animations carried on the reference, applied to the instance. */
+  animations?: DefinitionAnimation[];
+};
+
+export type PreparedAnim = {
+  /** Marker id, becomes the layer name when Figma imports the SVG. */
+  id: string;
+  animations: DefinitionAnimation[];
 };
 
 export type SerializedSvg = {
   /** Null when nothing importable remains after skipping unsupported content. */
   svg: string | null;
   refs: PreparedRef[];
+  anims: PreparedAnim[];
 };
 
 export type DefinitionSerializer = {
@@ -176,6 +186,8 @@ export function createDefinitionSerializer(
   const usedColorGroups = new Set<string>();
   const warnedMessages = new Set<string>();
   let refCounter = 0;
+  let animCounter = 0;
+  let anims: PreparedAnim[] = [];
   let sawVisible = false;
 
   const warnOnce = (message: string): void => {
@@ -373,7 +385,13 @@ export function createDefinitionSerializer(
       sawVisible = true;
     }
 
-    refs.push({ id, refName, color });
+    // The placeholder rect does not survive the import, so animations on the
+    // reference ride along on the ref and land on the created instance.
+    const animations = Array.isArray(element.animations) && element.animations.length > 0
+      ? element.animations
+      : undefined;
+
+    refs.push({ id, refName, color, animations });
 
     const transformAttribute = transformParts.length > 0 ? ` transform="${escapeXml(transformParts.join(' '))}"` : '';
 
@@ -423,7 +441,9 @@ export function createDefinitionSerializer(
     }
 
     if (element.name === 'style') {
-      warnOnce('<style> elements were skipped, CSS (including animations) cannot be imported into Figma.');
+      warnOnce(
+        '<style> elements were skipped, raw CSS cannot be imported into Figma. Declarative animations round-trip instead.',
+      );
 
       return '';
     }
@@ -453,9 +473,32 @@ export function createDefinitionSerializer(
 
     const childContent = serializeElements(element.children ?? [], context, scope, refs, childHidden);
 
-    return childContent === ''
-      ? `<${name}${attributeString}/>`
-      : `<${name}${attributeString}>${childContent}</${name}>`;
+    // An animated element gets a marker id so the importer can find its node
+    // and write the keyframe tracks. When the element carries an id of its
+    // own (it may be the target of a `url(#…)` reference), a wrapper group
+    // takes the marker instead; animating the wrapper is render-equivalent.
+    let markerAttribute = '';
+    let markerWrap = false;
+
+    if (!hidden && Array.isArray(element.animations) && element.animations.length > 0) {
+      const markerId = `dbimp-anim-${animCounter++}`;
+
+      anims.push({ id: markerId, animations: element.animations });
+
+      if (attributes.id === undefined) {
+        markerAttribute = ` id="${markerId}"`;
+      } else {
+        markerWrap = true;
+        markerAttribute = markerId;
+      }
+    }
+
+    const markup =
+      childContent === ''
+        ? `<${name}${markerWrap ? '' : markerAttribute}${attributeString}/>`
+        : `<${name}${markerWrap ? '' : markerAttribute}${attributeString}>${childContent}</${name}>`;
+
+    return markerWrap ? `<g id="${markerAttribute}">${markup}</g>` : markup;
   };
 
   const serialize = (elements: DefinitionElement[], width: number, height: number, scope: string): SerializedSvg => {
@@ -466,6 +509,7 @@ export function createDefinitionSerializer(
     const rootContext = resolveColorContext(rootRaw, {});
 
     sawVisible = false;
+    anims = [];
 
     const content = serializeElements(elements, rootContext, scope, refs, false);
 
@@ -473,7 +517,7 @@ export function createDefinitionSerializer(
     // permanently transparent overlays of the CSS animation components, would
     // only import empty layers.
     if (content.trim() === '' || !sawVisible) {
-      return { svg: null, refs: [] };
+      return { svg: null, refs: [], anims: [] };
     }
 
     let rootAttributes = '';
@@ -495,6 +539,7 @@ export function createDefinitionSerializer(
         `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" ` +
         `viewBox="0 0 ${width} ${height}"${rootAttributes}>${content}</svg>`,
       refs,
+      anims,
     };
   };
 

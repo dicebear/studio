@@ -10,6 +10,16 @@ export function convertSvgsonToDefinition(node: INode): DefinitionElement {
   };
 
   if (result.attributes) {
+    // The `data-dbanim` carrier attribute becomes the `animations` member
+    // again; the animKey prefix in front of the payload is dropped.
+    const rawAnimations = result.attributes['data-dbanim'];
+
+    if (typeof rawAnimations === 'string') {
+      delete result.attributes['data-dbanim'];
+
+      result.animations = JSON.parse(decodeURIComponent(rawAnimations.slice(rawAnimations.indexOf(':') + 1)));
+    }
+
     for (const key of Object.keys(result.attributes)) {
       const value = result.attributes[key];
 
@@ -45,11 +55,14 @@ export function convertSvgsonToDefinition(node: INode): DefinitionElement {
 
   // Skip collapse when the wrapping <g> carries mask/clip-path/filter/etc:
   // those establish rendering contexts that don't transfer to the child <use>.
+  // A wrapper animation moves onto the reference; when both carry animations,
+  // the wrapper stays a real group so neither timeline is lost.
   if (
     result.type === 'element' &&
     result.name === 'g' &&
     result.children?.length === 1 &&
-    result.children[0].type === 'component'
+    result.children[0].type === 'component' &&
+    !(result.animations && result.children[0].animations)
   ) {
     const parentAttributes = result.attributes ?? {};
     const isTransformOnly = Object.keys(parentAttributes).every((k) => k === 'transform');
@@ -65,7 +78,9 @@ export function convertSvgsonToDefinition(node: INode): DefinitionElement {
         mergedAttributes.transform = transformParts.join(' ');
       }
 
-      return { ...child, attributes: mergedAttributes };
+      const animations = result.animations ?? child.animations;
+
+      return { ...child, attributes: mergedAttributes, ...(animations ? { animations } : {}) };
     }
   }
 

@@ -98,6 +98,13 @@ export type NodeExportInfo = {
   fillColorAlpha?: number;
   strokeColorAlpha?: number;
   componentGroup?: string;
+  /** Declarative animations read from the node's manual keyframe tracks. */
+  animations?: import('./animation/types').DefinitionAnimation[];
+  /**
+   * Distinguishes identically-animated siblings, or svgo's `mergePaths` would
+   * fuse them into one element and halve the animation.
+   */
+  animKey?: number;
 };
 
 export type DefinitionElement = {
@@ -105,6 +112,7 @@ export type DefinitionElement = {
   name?: string;
   value?: string;
   attributes?: Record<string, string | { type: string; name: string }>;
+  animations?: import('./animation/types').DefinitionAnimation[];
   children?: DefinitionElement[];
 };
 

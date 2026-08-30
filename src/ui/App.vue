@@ -65,6 +65,8 @@ async function handleMessage(event: MessageEvent) {
         saveAs(blob, `${message.data.name}.json`);
       }
 
+      store.exportWarnings = message.data.warnings ?? [];
+
       postPluginMessage('init');
       break;
   }

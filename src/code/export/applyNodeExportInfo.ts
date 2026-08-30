@@ -88,6 +88,28 @@ export async function applyNodeExportInfo(svg: string) {
       };
     }
 
+    if (nodeExportInfo.animations) {
+      // Outside the transform wrappers: Figma composes motion outside the
+      // node's resting transform, and the renderer wraps the whole element the
+      // same way. URI-encoded so no svgo pass can touch the payload; the
+      // animKey prefix keeps identically-animated siblings distinguishable for
+      // `mergePaths`. An instance placeholder is a text node and cannot carry
+      // attributes, so it gets a wrapper group when the transform was
+      // identity.
+      if (resultNode.type !== 'element') {
+        resultNode = {
+          name: 'g',
+          type: 'element',
+          value: '',
+          attributes: {},
+          children: [resultNode],
+        };
+      }
+
+      resultNode.attributes['data-dbanim'] =
+        `${nodeExportInfo.animKey ?? 0}:${encodeURIComponent(JSON.stringify(nodeExportInfo.animations))}`;
+    }
+
     return resultNode;
   });
 

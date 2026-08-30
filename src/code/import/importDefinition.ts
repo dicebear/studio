@@ -6,9 +6,15 @@ import { isSupportedColor } from '../utils/isSupportedColor';
 import { isSupportedComponent } from '../utils/isSupportedComponent';
 import { createGuide } from './createGuide';
 import { createThumbnail } from './createThumbnail';
+import { definitionAnimationsToTracks } from '../animation/keyframes';
+import { DefinitionAnimation } from '../animation/types';
+import { isMotionAvailable } from '../utils/motionSupport';
+import { decomposeOriginAnimations } from '../animation/decomposeOrigin';
+import { formatAnimMarkerName } from '../animation/markers';
 import {
   createDefinitionSerializer,
   DefinitionSerializer,
+  PreparedAnim,
   PreparedRef,
   PreparedRefColor,
   resolveMasterName,
@@ -22,6 +28,7 @@ type PreparedVariant = {
   name: string;
   svg: string;
   refs: PreparedRef[];
+  anims: PreparedAnim[];
 };
 
 type PreparedGroup = {
@@ -34,6 +41,14 @@ type ImportContext = {
   componentIndex: Map<string, ComponentNode>;
   paintStylesByGroup: Map<string, PaintStyle[]>;
   currentColorSentinel: string;
+  /**
+   * The latest animation end time applied anywhere during this import.
+   * Components extend their own timelines as tracks are written, but the
+   * avatar frame only holds instances, so its timeline is extended to this
+   * value at the end — otherwise the preview stops at Figma's default
+   * duration mid-cycle.
+   */
+  maxTimelineEnd: number;
   warn: (message: string) => void;
   warnOnce: (message: string) => void;
 };
@@ -390,6 +405,20 @@ async function replaceRefPlaceholders(
       await applyReferenceColor(instance, ref.color, context);
     }
 
+    if (ref.animations) {
+      if (isMotionAvailable(instance)) {
+        try {
+          applyTracksToNode(instance, ref.animations, root, context);
+        } catch (e: any) {
+          context.warn(`${scope}: the animation on the reference to "${ref.refName}" could not be applied (${e.message}).`);
+        }
+      } else {
+        context.warnOnce(
+          'Figma animations are not available for your account; the animations of this definition were skipped.',
+        );
+      }
+    }
+
     placeholder.remove();
   }
 }
@@ -419,7 +448,7 @@ function prepareComponents(
         continue;
       }
 
-      variants.push({ name: variantName, svg: serialized.svg, refs: serialized.refs });
+      variants.push({ name: variantName, svg: serialized.svg, refs: serialized.refs, anims: serialized.anims });
     }
 
     if (variants.length === 0) {
@@ -563,6 +592,156 @@ function isInsideInstance(node: BaseNode, root: SceneNode): boolean {
 }
 
 /**
+ * Writes the manual keyframe tracks a node's definition animations describe,
+ * and stretches the containing timeline to the animation's end.
+ */
+function applyTracksToNode(
+  node: SceneNode,
+  animations: DefinitionAnimation[],
+  timelineHost: SceneNode,
+  context: ImportContext,
+): void {
+  // Non-center origins become center-based motion plus a compensating
+  // translation before conversion, so Figma plays them correctly; the node's
+  // bounds are the model's fill-box.
+  const decomposed = decomposeOriginAnimations(
+    animations,
+    { width: node.width, height: node.height },
+    context.warnOnce,
+  );
+
+  const { tracks, endTime } = definitionAnimationsToTracks(decomposed, context.warnOnce);
+
+  const entries = Object.entries(tracks);
+
+  if (entries.length === 0) {
+    return;
+  }
+
+  // The order matters: Figma rejects edits to a timeline that already holds
+  // keyframes beyond its end (the UI cannot even create such keyframes). So
+  // first materialize the timeline with a minimal in-range keyframe, then
+  // extend it to the full cycle, and only then write the real tracks — which
+  // replace the bootstrap track again.
+  const [bootstrapField, bootstrapTrack] = entries[0];
+
+  node.applyManualKeyframeTrack(
+    { type: 'PROPERTY', name: bootstrapField },
+    { keyframes: [{ ...bootstrapTrack.keyframes[0], timelinePosition: 0 }] },
+  );
+
+  extendTimeline(timelineHost, endTime, context);
+
+  for (const [field, track] of entries) {
+    let keyframes = track.keyframes;
+
+    // The definition animates opacity as a multiplier on the element's own
+    // opacity; Figma's OPACITY track is absolute.
+    if (field === 'OPACITY' && 'opacity' in node && node.opacity !== 1) {
+      const base = node.opacity;
+
+      keyframes = keyframes.map((keyframe) => ({
+        ...keyframe,
+        value:
+          keyframe.value.type === 'FLOAT' ? { type: 'FLOAT', value: keyframe.value.value * base } : keyframe.value,
+      }));
+    }
+
+    node.applyManualKeyframeTrack({ type: 'PROPERTY', name: field }, { keyframes });
+  }
+
+  context.maxTimelineEnd = Math.max(context.maxTimelineEnd, endTime);
+}
+
+/**
+ * Extends the timeline of the node's containing top-level frame so it covers
+ * the given end time. A shorter timeline would stop the preview mid-cycle.
+ */
+function extendTimeline(node: SceneNode, endTime: number, context: ImportContext): void {
+  if (endTime <= 0) {
+    return;
+  }
+
+  try {
+    const [timeline] = node.timelines;
+
+    if (!timeline) {
+      context.warnOnce(
+        'The timeline duration could not be adjusted; the animation may be cut off in the preview.',
+      );
+
+      return;
+    }
+
+    if (timeline.duration < endTime) {
+      node.setTimelineDuration(timeline.id, endTime);
+    }
+  } catch {
+    context.warnOnce('The timeline duration could not be adjusted; the animation may be cut off in the preview.');
+  }
+}
+
+/**
+ * Finds the marker layers the serializer emitted for animated elements and
+ * writes their keyframe tracks. The markers are renamed in every case — a
+ * later export must never see a `dbimp-anim-…` layer name — so the fallback
+ * for users without motion access still walks all of them.
+ */
+function applyImportedAnimations(
+  root: SceneNode & ChildrenMixin,
+  anims: PreparedAnim[],
+  context: ImportContext,
+  scope: string,
+): void {
+  if (anims.length === 0) {
+    return;
+  }
+
+  const motionAvailable = isMotionAvailable(root);
+
+  if (!motionAvailable) {
+    context.warnOnce(
+      'Figma animations are not available for your account; the animations of this definition were skipped.',
+    );
+  }
+
+  for (const anim of anims) {
+    const node = root.findOne((candidate) => candidate.name === anim.id && !isInsideInstance(candidate, root));
+
+    if (!node) {
+      context.warn(`${scope}: an animated element was lost during the SVG import, its animation was dropped.`);
+
+      continue;
+    }
+
+    // The marker has served its purpose. The layer name keeps the
+    // animation's name (`dbanim:hop`), where the export reads it back and a
+    // designer can see and change it; everything else gets a generic name.
+    // The transform origin needs no transport: it is decomposed into native
+    // tracks when they are written.
+    const names = [...new Set(anim.animations.map((a) => a.name).filter((n): n is string => n !== undefined))];
+
+    node.name = formatAnimMarkerName(names.length === 1 ? names[0] : undefined) ?? 'animated';
+
+    if (names.length > 1) {
+      context.warnOnce(
+        'A layer carries several named animations; Figma merges them into one, so a re-export drops their names.',
+      );
+    }
+
+    if (!motionAvailable) {
+      continue;
+    }
+
+    try {
+      applyTracksToNode(node, anim.animations, root, context);
+    } catch (e: any) {
+      context.warn(`${scope}: the animation could not be applied (${e.message}).`);
+    }
+  }
+}
+
+/**
  * Resolves `currentColor` layers that are still on the sentinel color inside
  * the main components. Instances that received a per-reference override keep
  * it, all others inherit this fallback.
@@ -647,6 +826,7 @@ export async function importDefinition(definition: DefinitionFile, styleName: st
     componentIndex,
     paintStylesByGroup,
     currentColorSentinel: serializer.currentColorSentinel,
+    maxTimelineEnd: 0,
     warn,
     warnOnce,
   };
@@ -687,6 +867,18 @@ export async function importDefinition(definition: DefinitionFile, styleName: st
         context,
         `component "${group.name}" variant "${variant.name}"`,
       );
+
+      // The rendered SVG clips only at the canvas (the always-on border
+      // radius clip); component defs render unclipped. createNodeFromSvg
+      // enables clipping by default, which would hide content that leaves
+      // the component box — planets' orbiting moon, for instance.
+      svgFrame.clipsContent = false;
+
+      // Before the frame becomes a component: setTimelineDuration works on
+      // frames but silently fails on components (the API accepts the value
+      // and reads it back, yet the player and the UI keep the old duration).
+      // The timeline created and extended here survives the conversion.
+      applyImportedAnimations(svgFrame, variant.anims, context, `component "${group.name}" variant "${variant.name}"`);
 
       const component = figma.createComponentFromNode(svgFrame);
 
@@ -745,6 +937,13 @@ export async function importDefinition(definition: DefinitionFile, styleName: st
     avatarPage.appendChild(frame);
     await bindColorStyles(frame, bindings, warnOnce);
     await replaceRefPlaceholders(frame, canvasSerialized.refs, context, 'canvas');
+    applyImportedAnimations(frame, canvasSerialized.anims, context, 'canvas');
+
+    // The frame plays the component timelines through its instances, so its
+    // own timeline must span the longest cycle applied anywhere.
+    if (context.maxTimelineEnd > 0 && isMotionAvailable(frame)) {
+      extendTimeline(frame, context.maxTimelineEnd, context);
+    }
   } else {
     frame = figma.createFrame();
     frame.resize(canvas.width, canvas.height);

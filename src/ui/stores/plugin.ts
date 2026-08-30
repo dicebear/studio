@@ -47,6 +47,7 @@ const usePluginStore = defineStore('plugin', () => {
   const componentTab = ref<ComponentTab>('settings');
   const message = ref<string>('');
   const importWarnings = ref<string[]>([]);
+  const exportWarnings = ref<string[]>([]);
   const activeStageKind = ref<StageKind>('general');
   const activeStageName = ref<string>('');
 
@@ -94,6 +95,7 @@ const usePluginStore = defineStore('plugin', () => {
     componentTab,
     message,
     importWarnings,
+    exportWarnings,
     activeStageKind,
     activeStageName,
   };

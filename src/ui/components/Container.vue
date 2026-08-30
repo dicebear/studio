@@ -117,6 +117,15 @@ function onNormalize() {
         <li v-for="(warning, index) in store.importWarnings" :key="index">{{ warning }}</li>
       </ul>
     </div>
+    <div v-if="store.exportWarnings.length > 0" class="warnings">
+      <div class="warnings-header">
+        <strong>Export warnings ({{ store.exportWarnings.length }})</strong>
+        <Button label="Dismiss" severity="secondary" text size="small" @click="store.exportWarnings = []" />
+      </div>
+      <ul class="warnings-list">
+        <li v-for="(warning, index) in store.exportWarnings" :key="index">{{ warning }}</li>
+      </ul>
+    </div>
     <div class="bottom">
       <input ref="fileInput" class="file-input" type="file" accept=".json,application/json" @change="onImportFile" />
       <Button

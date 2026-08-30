@@ -107,5 +107,5 @@ export type PluginMessage =
   | { type: 'import:result'; data: { warnings: string[] } }
   | {
       type: 'export';
-      data: { name: string; files?: Record<string, string>; content?: string };
+      data: { name: string; files?: Record<string, string>; content?: string; warnings?: string[] };
     };
