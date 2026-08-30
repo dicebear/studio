@@ -1,15 +1,19 @@
-import { isConstantTrack, tracksToDefinitionAnimation } from '../animation/keyframes';
 import rgbHex from 'rgb-hex';
 
-import { CURRENT_COLOR_GROUP } from '../utils/currentColor';
+import { isConstantTrack, tracksToDefinitionAnimation } from '../animation/keyframes';
 import { animationNameFromLayer } from '../animation/names';
+import { DefinitionAnimation } from '../animation/types';
 import { findAllInstanceNodes } from '../queries/findAllInstanceNodes';
 import { findAllNodesWithColor } from '../queries/findAllNodesWithColor';
+import { CURRENT_COLOR_GROUP } from '../utils/currentColor';
+import { decodeNodeNameData } from '../utils/decodeNodeNameData';
+import { encodeNodeNameData } from '../utils/encodeNodeNameData';
 import { getColorsByNode } from '../utils/getColorsByNode';
 import { getNameParts } from '../utils/getNameParts';
 import { isMotionAvailable } from '../utils/motionSupport';
 import { readNodeExportInfo } from '../utils/readNodeExportInfo';
 import { resolveComponentName } from '../utils/resolveComponentName';
+import { tick } from '../utils/tick';
 import { writeNodeExportInfo } from '../utils/writeNodeExportInfo';
 
 type PendingAnimationInfo = {
@@ -17,16 +21,25 @@ type PendingAnimationInfo = {
   node: SceneNode | null;
   /** The clone node's marker name, to re-resolve it if the proxy dies. */
   nodeName: string;
-  /** How many earlier entries carry the same name, to keep them apart. */
+  /** How many earlier clone nodes carry the same name, to keep them apart. */
   nameOccurrence: number;
-  animations: unknown[];
+  animations: DefinitionAnimation[];
   animKey: number;
   /** The value the opacity track starts at, when it is not 1. */
   restingOpacity?: number;
 };
 
-function tick(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0));
+/**
+ * A node's name with the export payload taken back out. The passes before the
+ * animation info stamp their own findings into the clone names, so a name
+ * collected earlier only matches again once that payload is stripped.
+ */
+function layerName(node: SceneNode): string {
+  const nodeNameData = decodeNodeNameData(node.name);
+
+  nodeNameData.delete('_export');
+
+  return encodeNodeNameData(nodeNameData);
 }
 
 /**
@@ -102,6 +115,14 @@ async function collectAnimationExportInfo(
   const nameCounts = new Map<string, number>();
 
   const collectNode = async (originalNode: SceneNode, cloneNode: SceneNode | null): Promise<void> => {
+    // Counted for every node the walk sees, not just the animated ones: the
+    // fallback below looks the name up among all layers that carry it, so the
+    // occurrence has to be counted the same way.
+    const nodeName = layerName(cloneNode ?? originalNode);
+    const nameOccurrence = nameCounts.get(nodeName) ?? 0;
+
+    nameCounts.set(nodeName, nameOccurrence + 1);
+
     let rawTracks: Record<string, { keyframes?: unknown[] }> | undefined;
 
     try {
@@ -156,11 +177,6 @@ async function collectAnimationExportInfo(
       }
 
       if (animation) {
-        const nodeName = cloneNode?.name ?? originalNode.name;
-        const nameOccurrence = nameCounts.get(nodeName) ?? 0;
-
-        nameCounts.set(nodeName, nameOccurrence + 1);
-
         pending.push({
           node: cloneNode,
           nodeName,
@@ -214,7 +230,6 @@ async function collectAnimationExportInfo(
   return pending;
 }
 
-
 /**
  * The color a component reference passes down to the `currentColor` layers of
  * its component.
@@ -225,6 +240,58 @@ async function collectAnimationExportInfo(
  * a palette style gives a color group, a plain paint gives a value, and
  * anything ambiguous is left alone.
  */
+type PaintChannel = {
+  styleId: 'fillStyleId' | 'strokeStyleId';
+  paints: 'fills' | 'strokes';
+};
+
+const PAINT_CHANNELS: PaintChannel[] = [
+  { styleId: 'fillStyleId', paints: 'fills' },
+  { styleId: 'strokeStyleId', paints: 'strokes' },
+];
+
+/** The id of the color style bound to one of a node's paint channels. */
+function boundStyleId(node: SceneNode, channel: PaintChannel): string | undefined {
+  const value =
+    channel.styleId === 'fillStyleId'
+      ? 'fillStyleId' in node
+        ? node.fillStyleId
+        : undefined
+      : 'strokeStyleId' in node
+        ? node.strokeStyleId
+        : undefined;
+
+  return typeof value === 'string' && value ? value : undefined;
+}
+
+/** The single solid paint of one of a node's channels, as a hex string. */
+function soloPaintHex(node: SceneNode, channel: PaintChannel): string | undefined {
+  const value =
+    channel.paints === 'fills'
+      ? 'fills' in node
+        ? node.fills
+        : undefined
+      : 'strokes' in node
+        ? node.strokes
+        : undefined;
+
+  if (!Array.isArray(value) || value.length !== 1) {
+    return undefined;
+  }
+
+  const paint = value[0] as Paint;
+
+  if (paint.type !== 'SOLID') {
+    return undefined;
+  }
+
+  return `#${rgbHex(
+    Math.round(paint.color.r * 255),
+    Math.round(paint.color.g * 255),
+    Math.round(paint.color.b * 255),
+  )}`;
+}
+
 async function readReferenceColor(
   instance: InstanceNode,
   mainComponent: ComponentNode,
@@ -233,14 +300,15 @@ async function readReferenceColor(
   const groups = new Set<string>();
   const values = new Set<string>();
 
-  const fillStyleId = (node: SceneNode): string | undefined =>
-    'fillStyleId' in node && typeof node.fillStyleId === 'string' && node.fillStyleId ? node.fillStyleId : undefined;
-
   const walk = async (node: SceneNode, master: SceneNode): Promise<void> => {
-    const masterStyle = fillStyleId(master);
+    for (const channel of PAINT_CHANNELS) {
+      const masterStyle = boundStyleId(master, channel);
 
-    if (masterStyle !== undefined && (await styleGroup(masterStyle)) === CURRENT_COLOR_GROUP) {
-      const ownStyle = fillStyleId(node);
+      if (masterStyle === undefined || (await styleGroup(masterStyle)) !== CURRENT_COLOR_GROUP) {
+        continue;
+      }
+
+      const ownStyle = boundStyleId(node, channel);
 
       if (ownStyle !== undefined) {
         const group = await styleGroup(ownStyle);
@@ -248,12 +316,14 @@ async function readReferenceColor(
         if (group !== undefined && group !== CURRENT_COLOR_GROUP) {
           groups.add(group);
         }
-      } else if ('fills' in node && Array.isArray(node.fills) && node.fills.length === 1) {
-        const paint = node.fills[0];
 
-        if (paint.type === 'SOLID') {
-          values.add(`#${rgbHex(Math.round(paint.color.r * 255), Math.round(paint.color.g * 255), Math.round(paint.color.b * 255))}`);
-        }
+        continue;
+      }
+
+      const hex = soloPaintHex(node, channel);
+
+      if (hex !== undefined) {
+        values.add(hex);
       }
     }
 
@@ -284,13 +354,52 @@ async function readReferenceColor(
   return undefined;
 }
 
+/**
+ * Whether a main component paints anything with `currentColor`. Only then can a
+ * reference to it pass a color down, and only then is the walk over both trees
+ * worth its cost. Answered once per component.
+ */
+function createCurrentColorProbe(
+  styleGroup: (id: string) => Promise<string | undefined>,
+): (mainComponent: ComponentNode) => Promise<boolean> {
+  const answers = new Map<string, boolean>();
+
+  return async (mainComponent: ComponentNode): Promise<boolean> => {
+    const cached = answers.get(mainComponent.id);
+
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    let found = false;
+
+    for (const node of mainComponent.findAll()) {
+      for (const channel of PAINT_CHANNELS) {
+        const styleId = boundStyleId(node, channel);
+
+        if (styleId !== undefined && (await styleGroup(styleId)) === CURRENT_COLOR_GROUP) {
+          found = true;
+          break;
+        }
+      }
+
+      if (found) {
+        break;
+      }
+    }
+
+    answers.set(mainComponent.id, found);
+
+    return found;
+  };
+}
+
 export async function calculateNodeExportInfo(
   node: ComponentNode | FrameNode,
   aliasesEnabled: boolean,
   ignoreColorGroup?: string,
   warn: (message: string) => void = () => {},
 ) {
-
   const cloneComponent = figma.createComponent();
   const cloneComponentRectangle = figma.createRectangle();
 
@@ -302,7 +411,16 @@ export async function calculateNodeExportInfo(
   cloneComponent.name = 'Export Helper Component';
   cloneComponent.insertChild(0, cloneComponentRectangle);
 
-  const nodeClone = node.clone();
+  let nodeClone: ComponentNode | FrameNode;
+
+  try {
+    nodeClone = node.clone();
+  } catch (e) {
+    // The helper would otherwise stay behind in the document.
+    cloneComponent.remove();
+
+    throw e;
+  }
 
   // Carried through the steps below so a Figma-internal error names the part
   // of the export it interrupted.
@@ -344,6 +462,7 @@ export async function calculateNodeExportInfo(
       return styleGroups.get(id);
     };
 
+    const usesCurrentColor = createCurrentColorProbe(styleGroup);
     const allInstanceNodes = await findAllInstanceNodes(nodeClone);
 
     phase = 'swapping the instances';
@@ -373,7 +492,9 @@ export async function calculateNodeExportInfo(
 
       nodeExportInfo.componentGroup = resolveComponentName(instanceNode, mainComponent, aliasesEnabled).componentName;
 
-      const referenceColor = await readReferenceColor(instanceNode, mainComponent, styleGroup);
+      const referenceColor = (await usesCurrentColor(mainComponent))
+        ? await readReferenceColor(instanceNode, mainComponent, styleGroup)
+        : undefined;
 
       if (referenceColor?.group !== undefined) {
         nodeExportInfo.refColorGroup = referenceColor.group;
@@ -491,7 +612,10 @@ export async function calculateNodeExportInfo(
         let candidates = nodesByName.get(entry.nodeName);
 
         if (candidates === undefined) {
-          candidates = nodeClone.findAll((candidate) => candidate.name === entry.nodeName);
+          // The exported node itself first, the way the collecting walk saw it.
+          candidates = [nodeClone as SceneNode, ...nodeClone.findAll(() => true)].filter(
+            (candidate) => layerName(candidate) === entry.nodeName,
+          );
           nodesByName.set(entry.nodeName, candidates);
         }
 
@@ -506,7 +630,7 @@ export async function calculateNodeExportInfo(
 
       const nodeExportInfo = readNodeExportInfo(target);
 
-      nodeExportInfo.animations = entry.animations as never;
+      nodeExportInfo.animations = entry.animations;
       nodeExportInfo.animKey = entry.animKey;
       nodeExportInfo.restingOpacity = entry.restingOpacity;
 

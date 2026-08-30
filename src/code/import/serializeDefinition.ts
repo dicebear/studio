@@ -406,9 +406,8 @@ export function createDefinitionSerializer(
 
     // The placeholder rect does not survive the import, so animations on the
     // reference ride along on the ref and land on the created instance.
-    const animations = Array.isArray(element.animations) && element.animations.length > 0
-      ? element.animations
-      : undefined;
+    const animations =
+      Array.isArray(element.animations) && element.animations.length > 0 ? element.animations : undefined;
 
     refs.push({ id, refName, color, animations });
 
@@ -503,28 +502,23 @@ export function createDefinitionSerializer(
     // and write the keyframe tracks. When the element carries an id of its
     // own (it may be the target of a `url(#…)` reference), a wrapper group
     // takes the marker instead. Animating the wrapper is render-equivalent.
-    let markerAttribute = '';
-    let markerWrap = false;
+    let markerId: string | null = null;
 
     if (!hidden && Array.isArray(element.animations) && element.animations.length > 0) {
-      const markerId = `dbimp-anim-${animCounter++}`;
+      markerId = `dbimp-anim-${animCounter++}`;
 
       anims.push({ id: markerId, animations: element.animations });
-
-      if (attributes.id === undefined) {
-        markerAttribute = ` id="${markerId}"`;
-      } else {
-        markerWrap = true;
-        markerAttribute = markerId;
-      }
     }
+
+    const markerWrap = markerId !== null && attributes.id !== undefined;
+    const ownMarker = markerId !== null && !markerWrap ? ` id="${markerId}"` : '';
 
     const markup =
       childContent === ''
-        ? `<${name}${markerWrap ? '' : markerAttribute}${attributeString}/>`
-        : `<${name}${markerWrap ? '' : markerAttribute}${attributeString}>${childContent}</${name}>`;
+        ? `<${name}${ownMarker}${attributeString}/>`
+        : `<${name}${ownMarker}${attributeString}>${childContent}</${name}>`;
 
-    return markerWrap ? `<g id="${markerAttribute}">${markup}</g>` : markup;
+    return markerWrap ? `<g id="${markerId}">${markup}</g>` : markup;
   };
 
   const serialize = (elements: DefinitionElement[], width: number, height: number, scope: string): SerializedSvg => {

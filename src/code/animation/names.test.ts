@@ -19,6 +19,11 @@ describe('animation layer names', () => {
     expect(animationNameFromLayer('  ')).toBeUndefined();
   });
 
+  it('leaves a name past the schema length limit unnamed', () => {
+    expect(animationNameFromLayer('a'.repeat(64))).toBe('a'.repeat(64));
+    expect(animationNameFromLayer('a'.repeat(65))).toBeUndefined();
+  });
+
   it('names an unnamed timeline', () => {
     expect(animationLayerName(undefined)).toBe('Animated');
     expect(animationNameFromLayer(animationLayerName(undefined))).toBe('animated');

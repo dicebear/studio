@@ -1,9 +1,9 @@
 import { DefinitionEasing, DefinitionEasingBezier, FigmaEasing } from './types';
 
 /** CSS's `ease` keyword as its defining bezier. */
-const CSS_EASE: DefinitionEasingBezier = { x1: 0.25, y1: 0.1, x2: 0.25, y2: 1 };
+export const CSS_EASE: DefinitionEasingBezier = { x1: 0.25, y1: 0.1, x2: 0.25, y2: 1 };
 
-function isSameBezier(a: DefinitionEasingBezier, b: DefinitionEasingBezier): boolean {
+export function isSameBezier(a: DefinitionEasingBezier, b: DefinitionEasingBezier): boolean {
   return a.x1 === b.x1 && a.y1 === b.y1 && a.x2 === b.x2 && a.y2 === b.y2;
 }
 

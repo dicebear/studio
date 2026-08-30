@@ -9,7 +9,14 @@ describe('decomposeOriginAnimations', () => {
   it('passes blocks without an origin through untouched', () => {
     const block: DefinitionAnimation = {
       duration: 2,
-      tracks: { translateX: { keyframes: [{ at: 0, value: 0 }, { at: 100, value: 10 }] } },
+      tracks: {
+        translateX: {
+          keyframes: [
+            { at: 0, value: 0 },
+            { at: 100, value: 10 },
+          ],
+        },
+      },
     };
 
     expect(decomposeOriginAnimations([block], SIZE, vi.fn())[0]).toBe(block);
@@ -19,7 +26,15 @@ describe('decomposeOriginAnimations', () => {
     const block: DefinitionAnimation = {
       duration: 2,
       origin: { x: 50, y: 50 },
-      tracks: { scaleY: { keyframes: [{ at: 0, value: 1 }, { at: 50, value: 0.5 }, { at: 100, value: 1 }] } },
+      tracks: {
+        scaleY: {
+          keyframes: [
+            { at: 0, value: 1 },
+            { at: 50, value: 0.5 },
+            { at: 100, value: 1 },
+          ],
+        },
+      },
     };
 
     const [result] = decomposeOriginAnimations([block], SIZE, vi.fn());
@@ -176,8 +191,19 @@ describe('decomposeOriginAnimations', () => {
       duration: 2,
       origin: { x: 50, y: 100 },
       tracks: {
-        translateY: { keyframes: [{ at: 0, value: 0 }, { at: 100, value: 10 }] },
-        scaleY: { keyframes: [{ at: 0, value: 1 }, { at: 50, value: 0.5 }, { at: 100, value: 1 }] },
+        translateY: {
+          keyframes: [
+            { at: 0, value: 0 },
+            { at: 100, value: 10 },
+          ],
+        },
+        scaleY: {
+          keyframes: [
+            { at: 0, value: 1 },
+            { at: 50, value: 0.5 },
+            { at: 100, value: 1 },
+          ],
+        },
       },
     };
 

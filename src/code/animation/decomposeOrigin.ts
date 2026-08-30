@@ -1,4 +1,5 @@
 import { roundTo } from '../utils/roundTo';
+import { CSS_EASE, isSameBezier } from './easing';
 import { DefinitionAnimation, DefinitionAnimationKeyframe, DefinitionEasing } from './types';
 
 /**
@@ -27,7 +28,7 @@ const TOLERANCE = 0.1;
 const MAX_DEPTH = 6;
 
 const KEYWORD_BEZIER: Record<string, [number, number, number, number]> = {
-  ease: [0.25, 0.1, 0.25, 1],
+  ease: [CSS_EASE.x1, CSS_EASE.y1, CSS_EASE.x2, CSS_EASE.y2],
   easeIn: [0.42, 0, 1, 1],
   easeOut: [0, 0, 0.58, 1],
   easeInOut: [0.42, 0, 0.58, 1],
@@ -84,7 +85,9 @@ function easedProgress(easing: DefinitionEasing | undefined, p: number): number 
   }
 
   const [x1, y1, x2, y2] =
-    typeof easing === 'string' ? (KEYWORD_BEZIER[easing] ?? [0, 0, 1, 1]) : [easing.x1, easing.y1, easing.x2, easing.y2];
+    typeof easing === 'string'
+      ? (KEYWORD_BEZIER[easing] ?? [0, 0, 1, 1])
+      : [easing.x1, easing.y1, easing.x2, easing.y2];
 
   return bezierProgress(x1, y1, x2, y2, p);
 }
@@ -171,7 +174,15 @@ function exactSegmentEasing(
  * Adds linearly-interpolated sample points of `f` between `u` and `v` (both
  * exclusive) to `out` until the polyline is within {@link TOLERANCE} of `f`.
  */
-function subdivide(f: (at: number) => number, u: number, fu: number, v: number, fv: number, depth: number, out: DefinitionAnimationKeyframe[]): void {
+function subdivide(
+  f: (at: number) => number,
+  u: number,
+  fu: number,
+  v: number,
+  fv: number,
+  depth: number,
+  out: DefinitionAnimationKeyframe[],
+): void {
   const mid = (u + v) / 2;
   const fmid = f(mid);
 
@@ -212,7 +223,9 @@ function normalizeLinear(
   defaultEasing: DefinitionEasing | undefined,
 ): DefinitionAnimationKeyframe[] {
   if (defaultEasing === undefined || defaultEasing === 'linear') {
-    return keyframes.map((keyframe) => (keyframe.easing === 'linear' ? { at: keyframe.at, value: keyframe.value } : keyframe));
+    return keyframes.map((keyframe) =>
+      keyframe.easing === 'linear' ? { at: keyframe.at, value: keyframe.value } : keyframe,
+    );
   }
 
   return keyframes;
@@ -223,7 +236,7 @@ function isSameEasing(a: DefinitionEasing, b: DefinitionEasing): boolean {
     return a === b;
   }
 
-  return a.x1 === b.x1 && a.y1 === b.y1 && a.x2 === b.x2 && a.y2 === b.y2;
+  return isSameBezier(a, b);
 }
 
 /**
@@ -267,7 +280,11 @@ function sumTracks(
       exact = segB;
     } else if (bConstant && segA) {
       exact = segA;
-    } else if (segA && segB && isSameEasing(segA.easing ?? defaultEasing ?? 'linear', segB.easing ?? defaultEasing ?? 'linear')) {
+    } else if (
+      segA &&
+      segB &&
+      isSameEasing(segA.easing ?? defaultEasing ?? 'linear', segB.easing ?? defaultEasing ?? 'linear')
+    ) {
       exact = segA;
     }
 

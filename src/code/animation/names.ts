@@ -14,6 +14,9 @@ import { normalizeName } from '../utils/normalizeName';
 /** The `camelCaseName` format of the definition schema. */
 const NAME_PATTERN = /^[a-z][a-zA-Z0-9]*$/;
 
+/** The `camelCaseName` length limit of the definition schema. */
+const NAME_MAX_LENGTH = 64;
+
 /** The layer name for an animated node, named or not. */
 export function animationLayerName(name: string | undefined): string {
   return name ?? 'Animated';
@@ -23,5 +26,5 @@ export function animationLayerName(name: string | undefined): string {
 export function animationNameFromLayer(layerName: string): string | undefined {
   const name = normalizeName(layerName);
 
-  return NAME_PATTERN.test(name) ? name : undefined;
+  return NAME_PATTERN.test(name) && name.length <= NAME_MAX_LENGTH ? name : undefined;
 }

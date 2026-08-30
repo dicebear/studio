@@ -202,11 +202,7 @@ describe('tracksToDefinitionAnimation', () => {
     );
 
     expect(warnings).toHaveLength(0);
-    expect(animation?.tracks.rotate?.keyframes.map((k) => k.easing)).toEqual([
-      undefined,
-      'easeIn',
-      undefined,
-    ]);
+    expect(animation?.tracks.rotate?.keyframes.map((k) => k.easing)).toEqual([undefined, 'easeIn', undefined]);
   });
 
   it('converts tracks back with percent positions and departure easings', () => {
@@ -357,11 +353,7 @@ describe('isConstantTrack', () => {
 
   it('treats mixed value types as motion', () => {
     expect(
-      isConstantTrack([
-        float(1),
-        { timelinePosition: 100, value: { type: 'VECTOR' as const, value: { x: 1, y: 1 } } },
-      ]),
+      isConstantTrack([float(1), { timelinePosition: 100, value: { type: 'VECTOR' as const, value: { x: 1, y: 1 } } }]),
     ).toBe(false);
   });
 });
-

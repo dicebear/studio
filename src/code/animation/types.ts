@@ -49,9 +49,7 @@ export type FigmaEasing = {
   easingFunctionSpring?: { bounce: number };
 };
 
-export type FigmaKeyframeValue =
-  | { type: 'FLOAT'; value: number }
-  | { type: 'VECTOR'; value: { x: number; y: number } };
+export type FigmaKeyframeValue = { type: 'FLOAT'; value: number } | { type: 'VECTOR'; value: { x: number; y: number } };
 
 export type FigmaKeyframe = {
   timelinePosition: number;

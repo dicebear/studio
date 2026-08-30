@@ -11,13 +11,19 @@ export function convertSvgsonToDefinition(node: INode): DefinitionElement {
 
   if (result.attributes) {
     // The `data-dbanim` carrier attribute becomes the `animations` member
-    // again. The animKey prefix in front of the payload is dropped.
+    // again. The animKey prefix in front of the payload is dropped. The
+    // attribute goes in every case: it is not part of the definition format,
+    // and a payload no longer worth reading is better dropped than fatal.
     const rawAnimations = result.attributes['data-dbanim'];
 
     if (typeof rawAnimations === 'string') {
       delete result.attributes['data-dbanim'];
 
-      result.animations = JSON.parse(decodeURIComponent(rawAnimations.slice(rawAnimations.indexOf(':') + 1)));
+      try {
+        result.animations = JSON.parse(decodeURIComponent(rawAnimations.slice(rawAnimations.indexOf(':') + 1)));
+      } catch {
+        // An animation lost is better than an export that cannot finish.
+      }
     }
 
     for (const key of Object.keys(result.attributes)) {

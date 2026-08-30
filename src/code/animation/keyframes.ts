@@ -14,6 +14,9 @@ import {
 /** Timeline positions closer than this count as the same moment. */
 const EPSILON = 0.0005;
 
+/** What the definition schema allows per track (`animationTrack.maxItems`). */
+const MAX_KEYFRAMES = 64;
+
 const FIELD_BY_TRACK: Record<DefinitionAnimationTrackName, FigmaTrackField> = {
   translateX: 'TRANSLATION_X',
   translateY: 'TRANSLATION_Y',
@@ -34,13 +37,10 @@ const TRACK_BY_FIELD: Record<FigmaTrackField, DefinitionAnimationTrackName> = {
 
 /**
  * The definition stores a rotation as CSS sees it (positive turns clockwise),
- * Figma's ROTATION field turns counter-clockwise for positive values.
+ * Figma's ROTATION field turns counter-clockwise for positive values. The flip
+ * is its own inverse, so both directions share it.
  */
-function toFigmaValue(track: DefinitionAnimationTrackName, value: number): number {
-  return track === 'rotate' ? -value : value;
-}
-
-function toDefinitionValue(track: DefinitionAnimationTrackName, value: number): number {
+function flipRotation(track: DefinitionAnimationTrackName, value: number): number {
   return track === 'rotate' ? -value : value;
 }
 
@@ -99,7 +99,13 @@ export function definitionAnimationsToTracks(
     }
 
     if (animation.iterations !== undefined && animation.iterations !== 'infinite') {
-      warn('Finite iteration counts cannot be represented on the Figma timeline. The animation loops with the preview.');
+      warn(
+        'Finite iteration counts cannot be represented on the Figma timeline. The animation loops with the preview.',
+      );
+    }
+
+    if ((animation.fill ?? 'none') !== 'none') {
+      warn('The Figma timeline always rewinds, so an animation that holds its last value was imported without it.');
     }
 
     const defaultEasing = animation.easing ?? 'linear';
@@ -129,9 +135,7 @@ export function definitionAnimationsToTracks(
       }
 
       if (repetitions > 1 && repetitions * animation.duration + delay < masterCycle - EPSILON) {
-        warn(
-          'Animation tracks with mixed durations hold their final value until the end of the Figma timeline pass.',
-        );
+        warn('Animation tracks with mixed durations hold their final value until the end of the Figma timeline pass.');
       }
 
       const figmaKeyframes: FigmaKeyframe[] = [];
@@ -153,7 +157,7 @@ export function definitionAnimationsToTracks(
 
           const figmaKeyframe: FigmaKeyframe = {
             timelinePosition,
-            value: { type: 'FLOAT', value: toFigmaValue(trackName, keyframe.value) },
+            value: { type: 'FLOAT', value: flipRotation(trackName, keyframe.value) },
           };
 
           // The arrival easing is the departure easing of the preceding
@@ -193,6 +197,18 @@ type RawFigmaTrack = {
 };
 
 /**
+ * Picks `limit` evenly spaced keyframes, the first and the last included. Runs
+ * only on a track that Figma let a designer build longer than the definition
+ * format can hold. The spacing stays above one index, so the positions stay
+ * strictly ascending.
+ */
+function thinOut(keyframes: DefinitionAnimationKeyframe[], limit: number): DefinitionAnimationKeyframe[] {
+  const last = keyframes.length - 1;
+
+  return Array.from({ length: limit }, (_, index) => keyframes[Math.round((index * last) / (limit - 1))]);
+}
+
+/**
  * Converts the manual keyframe tracks read from one Figma node back into a
  * definition animation block.
  *
@@ -223,18 +239,32 @@ export function tracksToDefinitionAnimation(
 
   const addTrack = (
     trackName: DefinitionAnimationTrackName,
-    keyframes: { timelinePosition: number; value: number; easing?: FigmaEasing }[],
+    rawKeyframes: { timelinePosition: number; value: number; easing?: FigmaEasing }[],
   ): void => {
+    // The model needs strictly ascending positions. Figma hands the keyframes
+    // over in timeline order, but nothing in the API promises it.
+    const keyframes = [...rawKeyframes].sort((a, b) => a.timelinePosition - b.timelinePosition);
+
     if (keyframes.length < 2) {
-      warn(`A single-keyframe "${trackName}" track carries no motion and was not exported.`);
+      warn(`A "${trackName}" track with fewer than two keyframes carries no motion and was not exported.`);
 
       return;
     }
 
-    const converted: DefinitionAnimationKeyframe[] = keyframes.map((keyframe, index) => {
+    let converted: DefinitionAnimationKeyframe[] = [];
+
+    keyframes.forEach((keyframe, index) => {
+      const at = roundTo((keyframe.timelinePosition / duration) * 100, 4);
+
+      // Two keyframes closer together than the exported precision would share a
+      // position, which the model forbids. The earlier one wins.
+      if (converted.length > 0 && at <= converted[converted.length - 1].at) {
+        return;
+      }
+
       const result: DefinitionAnimationKeyframe = {
-        at: roundTo((keyframe.timelinePosition / duration) * 100, 4),
-        value: roundTo(toDefinitionValue(trackName, keyframe.value), 5),
+        at,
+        value: roundTo(flipRotation(trackName, keyframe.value), 5),
       };
 
       // The incoming easing of the NEXT Figma keyframe is this definition
@@ -251,13 +281,28 @@ export function tracksToDefinitionAnimation(
         }
       }
 
-      return result;
+      converted.push(result);
     });
+
+    if (converted.length < 2) {
+      warn(`A "${trackName}" track with fewer than two keyframes carries no motion and was not exported.`);
+
+      return;
+    }
 
     // Figma holds the first keyframe's value back to the start of the
     // timeline. The model expresses that as an explicit constant segment.
     if (converted[0].at > 0) {
       converted.unshift({ at: 0, value: converted[0].value });
+    }
+
+    if (converted.length > MAX_KEYFRAMES) {
+      warn(
+        `The "${trackName}" track has more keyframes than a definition can hold. ` +
+          'It was thinned out, so its timing is now approximate.',
+      );
+
+      converted = thinOut(converted, MAX_KEYFRAMES);
     }
 
     tracks[trackName] = { keyframes: converted };
