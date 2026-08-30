@@ -1,6 +1,6 @@
 /**
  * Ambient declarations for Figma's motion API, which `@figma/plugin-typings`
- * does not ship yet. Kept to the surface the plugin uses; delete this file
+ * does not ship yet. Kept to the surface the plugin uses. Delete this file
  * once the typings package carries the real definitions. The members exist at
  * runtime only for users with motion access — accessing them without it
  * throws, so every use sits behind `isMotionAvailable` or a try/catch.

@@ -502,7 +502,7 @@ export function createDefinitionSerializer(
     // An animated element gets a marker id so the importer can find its node
     // and write the keyframe tracks. When the element carries an id of its
     // own (it may be the target of a `url(#…)` reference), a wrapper group
-    // takes the marker instead; animating the wrapper is render-equivalent.
+    // takes the marker instead. Animating the wrapper is render-equivalent.
     let markerAttribute = '';
     let markerWrap = false;
 

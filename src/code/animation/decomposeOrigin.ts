@@ -2,13 +2,13 @@ import { roundTo } from '../utils/roundTo';
 import { DefinitionAnimation, DefinitionAnimationKeyframe, DefinitionEasing } from './types';
 
 /**
- * Figma always rotates and scales around a node's center; the Motion UI's
+ * Figma always rotates and scales around a node's center. The Motion UI's
  * anchor point is invisible to the plugin API. So a non-center transform
  * origin is decomposed into its native equivalent before the tracks are
  * written: the rotation/scale stays center-based and a compensating
  * translation moves the node so the motion pivots around the origin. That
  * makes the Figma preview correct and every keyframe editable with Figma's
- * own tools — the origin as a concept simply does not travel to Figma.
+ * own tools — the origin as a concept does not travel to Figma.
  *
  * A scale-only origin decomposes exactly (the compensation is an affine
  * function of the scale value, so it shares the scale track's keyframes and
@@ -23,7 +23,7 @@ import { DefinitionAnimation, DefinitionAnimationKeyframe, DefinitionEasing } fr
 /** Maximum deviation of a sampled polyline from the true curve, in pixels. */
 const TOLERANCE = 0.1;
 
-/** Bisection depth cap; bounds the keyframe count per segment to 2^6. */
+/** Bisection depth cap, bounding the keyframe count per segment to 2^6. */
 const MAX_DEPTH = 6;
 
 const KEYWORD_BEZIER: Record<string, [number, number, number, number]> = {
@@ -151,7 +151,7 @@ function isConstantOn(keyframes: DefinitionAnimationKeyframe[], u: number, v: nu
 
 /**
  * The departure easing of the segment `[u, v]` when it coincides exactly with
- * one of the track's own segments; `null` when it is a split piece.
+ * one of the track's own segments, and `null` when it is a split piece.
  */
 function exactSegmentEasing(
   keyframes: DefinitionAnimationKeyframe[],
@@ -184,7 +184,7 @@ function subdivide(f: (at: number) => number, u: number, fu: number, v: number, 
   subdivide(f, mid, fmid, v, fv, depth + 1, out);
 }
 
-/** Drops interior keyframes of constant runs; between equal values every easing renders the same. */
+/** Drops interior keyframes of constant runs. Between equal values every easing renders the same. */
 function pruneConstantRuns(keyframes: DefinitionAnimationKeyframe[]): DefinitionAnimationKeyframe[] {
   return keyframes.filter((keyframe, index) => {
     if (index === 0 || index === keyframes.length - 1) {
@@ -205,7 +205,7 @@ function roundKeyframes(keyframes: DefinitionAnimationKeyframe[]): DefinitionAni
 
 /**
  * A sampled keyframe must not inherit a non-linear block default between its
- * linear samples; a keyframe that happens to fall on linear can rely on it.
+ * linear samples. A keyframe that happens to fall on linear can rely on it.
  */
 function normalizeLinear(
   keyframes: DefinitionAnimationKeyframe[],

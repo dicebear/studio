@@ -120,7 +120,7 @@ describe('decomposeOriginAnimations', () => {
     expect(result.origin).toBeUndefined();
     expect(result.tracks.rotate).toEqual(block.tracks.rotate);
 
-    // vx = 50; the pivot sits at the right edge. A clockwise quarter turn
+    // vx = 50: the pivot sits at the right edge. A clockwise quarter turn
     // moves the center to (compX, compY) = (50, -50).
     const compX = result.tracks.translateX!.keyframes;
     const compY = result.tracks.translateY!.keyframes;
@@ -183,7 +183,7 @@ describe('decomposeOriginAnimations', () => {
 
     const [result] = decomposeOriginAnimations([block], SIZE, vi.fn());
 
-    // vy = 50: comp peaks at 25 in the middle; both sources are linear, so
+    // vy = 50: comp peaks at 25 in the middle. Both sources are linear, so
     // the sum stays a three-point polyline.
     expect(result.tracks.translateY).toEqual({
       keyframes: [

@@ -9,7 +9,7 @@ function isSameBezier(a: DefinitionEasingBezier, b: DefinitionEasingBezier): boo
 
 /**
  * A cubic bezier standing in for a spring. A bezier can express at most one
- * overshoot, so multi-oscillation springs flatten to a single settle; every
+ * overshoot, so multi-oscillation springs flatten to a single settle. Every
  * caller pairs this with a warning.
  */
 function springBezier(bounce: number): DefinitionEasingBezier {
@@ -49,7 +49,7 @@ export function definitionEasingToFigma(easing: DefinitionEasing): FigmaEasing {
 /**
  * Converts a Figma motion easing back to the definition vocabulary. Springs
  * and the back presets have no CSS equivalent and come back as approximating
- * beziers; springs additionally warn, because their later oscillations are
+ * beziers. Springs additionally warn, because their later oscillations are
  * lost.
  */
 export function figmaEasingToDefinition(easing: FigmaEasing, warn: (message: string) => void): DefinitionEasing {
@@ -80,23 +80,23 @@ export function figmaEasingToDefinition(easing: FigmaEasing, warn: (message: str
     case 'EASE_IN_AND_OUT_BACK':
       return { x1: 0.68, y1: -0.6, x2: 0.32, y2: 1.6 };
     case 'GENTLE':
-      warn('Spring easings were approximated with cubic beziers, their later oscillations are lost.');
+      warn('Spring easings were approximated with cubic beziers, so their later oscillations are lost.');
 
       return { x1: 0.22, y1: 1, x2: 0.36, y2: 1 };
     case 'QUICK':
-      warn('Spring easings were approximated with cubic beziers, their later oscillations are lost.');
+      warn('Spring easings were approximated with cubic beziers, so their later oscillations are lost.');
 
       return { x1: 0.3, y1: 1, x2: 0.36, y2: 1 };
     case 'SLOW':
-      warn('Spring easings were approximated with cubic beziers, their later oscillations are lost.');
+      warn('Spring easings were approximated with cubic beziers, so their later oscillations are lost.');
 
       return { x1: 0.25, y1: 0.8, x2: 0.4, y2: 1 };
     case 'BOUNCY':
-      warn('Spring easings were approximated with cubic beziers, their later oscillations are lost.');
+      warn('Spring easings were approximated with cubic beziers, so their later oscillations are lost.');
 
       return springBezier(0.5);
     case 'CUSTOM_SPRING':
-      warn('Spring easings were approximated with cubic beziers, their later oscillations are lost.');
+      warn('Spring easings were approximated with cubic beziers, so their later oscillations are lost.');
 
       return springBezier(easing.easingFunctionSpring?.bounce ?? 0);
     default:

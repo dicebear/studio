@@ -54,7 +54,7 @@ describe('the data-dbanim carrier attribute', () => {
     const [outer] = definition.children ?? [];
 
     // The inner transform-only group still collapses onto the reference, so
-    // the reference carries its own animations; the outer wrapper keeps its
+    // the reference carries its own animations. The outer wrapper keeps its
     // separate timeline as a real group.
     expect(outer.name).toBe('g');
     expect(outer.animations).toEqual(pulse);

@@ -37,7 +37,7 @@ describe('definitionAnimationsToTracks', () => {
     const keyframes = tracks.TRANSLATION_X?.keyframes ?? [];
 
     expect(keyframes.map((keyframe) => keyframe.timelinePosition)).toEqual([0, 1, 2]);
-    // The first keyframe has no incoming segment; the second arrives through
+    // The first keyframe has no incoming segment. The second arrives through
     // the first keyframe's departure easing, the third through the block
     // default.
     expect(keyframes[0].easing).toBeUndefined();
@@ -269,7 +269,7 @@ describe('tracksToDefinitionAnimation', () => {
     const secondRoundTrip = tracksToDefinitionAnimation(secondPass as never, 0, warn);
 
     // The first round trip normalizes (explicit linear easings, unified
-    // duration); from then on the conversion must be stable.
+    // duration). From then on the conversion must be stable.
     expect(secondRoundTrip).toEqual(roundTripped);
   });
 

@@ -11,7 +11,7 @@ export function convertSvgsonToDefinition(node: INode): DefinitionElement {
 
   if (result.attributes) {
     // The `data-dbanim` carrier attribute becomes the `animations` member
-    // again; the animKey prefix in front of the payload is dropped.
+    // again. The animKey prefix in front of the payload is dropped.
     const rawAnimations = result.attributes['data-dbanim'];
 
     if (typeof rawAnimations === 'string') {
@@ -55,7 +55,7 @@ export function convertSvgsonToDefinition(node: INode): DefinitionElement {
 
   // Skip collapse when the wrapping <g> carries mask/clip-path/filter/etc:
   // those establish rendering contexts that don't transfer to the child <use>.
-  // A wrapper animation moves onto the reference; when both carry animations,
+  // A wrapper animation moves onto the reference. When both carry animations,
   // the wrapper stays a real group so neither timeline is lost.
   if (
     result.type === 'element' &&

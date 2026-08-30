@@ -57,7 +57,7 @@ export type ConvertedTracks = {
  * One Figma timeline pass represents one master cycle: `T`, the longest
  * block's `delay + duration`. Blocks whose first and last keyframe values
  * match (loop-continuous, the common case) are repeated in whole cycles up to
- * `T`; a block that ends away from its start cannot repeat on a finite
+ * `T`. A block that ends away from its start cannot repeat on a finite
  * timeline without a jump, so it plays once and holds. Everything lossy warns.
  *
  * The definition attaches a keyframe's easing to the departure (CSS
@@ -70,7 +70,7 @@ export function definitionAnimationsToTracks(
   const tracks: FigmaTracks = {};
 
   // The master cycle length. Negative delays shift the phase in CSS but have
-  // no Figma counterpart; they are clamped when the keyframes are placed, so
+  // no Figma counterpart. They are clamped when the keyframes are placed, so
   // the cycle length ignores them as well.
   let masterCycle = 0;
 
@@ -90,7 +90,7 @@ export function definitionAnimationsToTracks(
 
     if (delay > 0) {
       warn(
-        'Animation delays become a leading hold on the Figma timeline; when the preview loops, the hold repeats with it.',
+        'Animation delays become a leading hold on the Figma timeline. When the preview loops, the hold repeats with it.',
       );
     }
 
@@ -99,7 +99,7 @@ export function definitionAnimationsToTracks(
     }
 
     if (animation.iterations !== undefined && animation.iterations !== 'infinite') {
-      warn('Finite iteration counts cannot be represented on the Figma timeline; the animation loops with the preview.');
+      warn('Finite iteration counts cannot be represented on the Figma timeline. The animation loops with the preview.');
     }
 
     const defaultEasing = animation.easing ?? 'linear';
@@ -124,7 +124,7 @@ export function definitionAnimationsToTracks(
         repetitions = Math.max(1, Math.floor((masterCycle - delay + EPSILON) / animation.duration));
       } else if (cycleEnd < masterCycle - EPSILON) {
         warn(
-          'Animation tracks that end away from their starting value cannot repeat on the Figma timeline; they play once and hold.',
+          'Animation tracks that end away from their starting value cannot repeat on the Figma timeline. They play once and hold.',
         );
       }
 
@@ -145,8 +145,8 @@ export function definitionAnimationsToTracks(
           const previous = figmaKeyframes[figmaKeyframes.length - 1];
 
           // At a repetition boundary an explicit 100% keyframe and the next
-          // cycle's 0% keyframe land on the same moment with the same value;
-          // one of them is enough.
+          // cycle's 0% keyframe land on the same moment with the same value.
+          // One of them is enough.
           if (previous && Math.abs(previous.timelinePosition - timelinePosition) < EPSILON) {
             continue;
           }
@@ -157,7 +157,7 @@ export function definitionAnimationsToTracks(
           };
 
           // The arrival easing is the departure easing of the preceding
-          // definition keyframe; the first keyframe of the timeline has no
+          // definition keyframe. The first keyframe of the timeline has no
           // incoming segment.
           if (figmaKeyframes.length > 0) {
             const departure = i === 0 ? keyframes[keyframes.length - 1] : keyframes[i - 1];
@@ -176,7 +176,7 @@ export function definitionAnimationsToTracks(
       const field = FIELD_BY_TRACK[trackName];
 
       if (tracks[field]) {
-        warn(`Two animation blocks animate "${trackName}" on the same element; only the first one was imported.`);
+        warn(`Two animation blocks animate "${trackName}" on the same element. Only the first one was imported.`);
 
         continue;
       }
@@ -239,7 +239,7 @@ export function tracksToDefinitionAnimation(
 
       // The incoming easing of the NEXT Figma keyframe is this definition
       // keyframe's departure easing. Figma attaches a LINEAR easing to every
-      // keyframe; `linear` is the model's segment fallback anyway, so writing
+      // keyframe. `linear` is the model's segment fallback anyway, so writing
       // it out would only bloat the definition.
       const arrival = keyframes[index + 1]?.easing;
 
@@ -255,7 +255,7 @@ export function tracksToDefinitionAnimation(
     });
 
     // Figma holds the first keyframe's value back to the start of the
-    // timeline; the model expresses that as an explicit constant segment.
+    // timeline. The model expresses that as an explicit constant segment.
     if (converted[0].at > 0) {
       converted.unshift({ at: 0, value: converted[0].value });
     }

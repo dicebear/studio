@@ -138,7 +138,7 @@ export async function applyNodeExportInfo(svg: string) {
     if (nodeExportInfo.animations) {
       // Outside the transform wrappers: Figma composes motion outside the
       // node's resting transform, and the renderer wraps the whole element the
-      // same way. URI-encoded so no svgo pass can touch the payload; the
+      // same way. URI-encoded so no svgo pass can touch the payload. The
       // animKey prefix keeps identically-animated siblings distinguishable for
       // `mergePaths`. An instance placeholder is a text node and cannot carry
       // attributes, so it gets a wrapper group when the transform was

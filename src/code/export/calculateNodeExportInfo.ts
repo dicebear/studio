@@ -76,7 +76,7 @@ async function readChildren(node: SceneNode): Promise<readonly SceneNode[] | und
  * a wrapper group's name to its original value, silently dropping canvas
  * animations while component exports kept theirs.
  *
- * The original and the clone are walked in parallel by child index; at this
+ * The original and the clone are walked in parallel by child index. At this
  * point the clone is structurally identical (instances are swapped and
  * booleans flattened only afterwards). Tracks are read from the original —
  * whether `clone()` copies motion data is not part of Figma's documented
@@ -115,7 +115,7 @@ async function collectAnimationExportInfo(
 
       for (const [field, track] of Object.entries(rawTracks)) {
         // `fills`, `strokes`, and `effects` hold index-keyed sub-tracks
-        // rather than keyframe lists; they have no DiceBear equivalent.
+        // rather than keyframe lists. They have no DiceBear equivalent.
         if (!track || !Array.isArray(track.keyframes)) {
           warn(`The animated Figma property "${field}" has no DiceBear equivalent and was not exported.`);
 
@@ -125,7 +125,7 @@ async function collectAnimationExportInfo(
         const keyframes = track.keyframes as any[];
 
         // The import stretches an instance's playback clip with a constant
-        // span track; it carries no motion and is not part of the design.
+        // span track. It carries no motion and is not part of the design.
         if (isConstantTrack(keyframes)) {
           continue;
         }
@@ -144,7 +144,7 @@ async function collectAnimationExportInfo(
 
       let animation = tracksToDefinitionAnimation(tracks, 0, warn);
 
-      // The layer name carries the animation's name; the import writes it,
+      // The layer name carries the animation's name. The import writes it,
       // designers may edit it, and the export normalizes whatever they left
       // behind.
       const name = animationNameFromLayer(originalNode.name);
@@ -180,7 +180,7 @@ async function collectAnimationExportInfo(
       const originalChildren = await readChildren(originalNode);
 
       if (originalChildren === undefined) {
-        warn(`The children of "${originalNode.name}" could not be read; animations below it were not exported.`);
+        warn(`The children of "${originalNode.name}" could not be read. Animations below it were not exported.`);
 
         return;
       }
@@ -192,7 +192,7 @@ async function collectAnimationExportInfo(
 
         if (cloneChildren === undefined) {
           warn(
-            `The export copy of "${originalNode.name}" could not be read; the animations below it are placed by layer name.`,
+            `The export copy of "${originalNode.name}" could not be read. The animations below it are placed by layer name.`,
           );
         }
       }

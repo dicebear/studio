@@ -1,7 +1,7 @@
 /**
  * Local mirror of the declarative animation model from `@dicebear/schema`.
- * The plugin converts between this shape and Figma's manual keyframe tracks;
- * everything in this directory is pure and free of the `figma` global, so it
+ * The plugin converts between this shape and Figma's manual keyframe tracks.
+ * Everything in this directory is pure and free of the `figma` global, so it
  * runs under vitest.
  */
 

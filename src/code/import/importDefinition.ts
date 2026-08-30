@@ -473,7 +473,7 @@ async function replaceRefPlaceholders(
 
         if (names.length > 1) {
           context.warnOnce(
-            'A layer carries several named animations; Figma merges them into one, so a re-export drops their names.',
+            'A layer carries several named animations. Figma merges them into one, so a re-export drops their names.',
           );
         }
 
@@ -484,7 +484,7 @@ async function replaceRefPlaceholders(
         }
       } else {
         context.warnOnce(
-          'Figma animations are not available for your account; the animations of this definition were skipped.',
+          'Figma animations are not available for your account. The animations of this definition were skipped.',
         );
       }
     }
@@ -672,7 +672,7 @@ function applyTracksToNode(
   context: ImportContext,
 ): void {
   // Non-center origins become center-based motion plus a compensating
-  // translation before conversion, so Figma plays them correctly; the node's
+  // translation before conversion, so Figma plays them correctly. The node's
   // bounds are the model's fill-box.
   const decomposed = decomposeOriginAnimations(
     animations,
@@ -725,7 +725,7 @@ function extendTimeline(node: SceneNode, endTime: number, context: ImportContext
 
     if (!timeline) {
       context.warnOnce(
-        'The timeline duration could not be adjusted; the animation may be cut off in the preview.',
+        'The timeline duration could not be adjusted. The animation may be cut off in the preview.',
       );
 
       return;
@@ -735,7 +735,7 @@ function extendTimeline(node: SceneNode, endTime: number, context: ImportContext
       node.setTimelineDuration(timeline.id, endTime);
     }
   } catch {
-    context.warnOnce('The timeline duration could not be adjusted; the animation may be cut off in the preview.');
+    context.warnOnce('The timeline duration could not be adjusted. The animation may be cut off in the preview.');
   }
 }
 
@@ -759,7 +759,7 @@ function applyImportedAnimations(
 
   if (!motionAvailable) {
     context.warnOnce(
-      'Figma animations are not available for your account; the animations of this definition were skipped.',
+      'Figma animations are not available for your account. The animations of this definition were skipped.',
     );
   }
 
@@ -774,7 +774,7 @@ function applyImportedAnimations(
 
     // The marker has served its purpose. The layer name keeps the
     // animation's name (`hop`), where the export reads it back and a designer
-    // can see and change it; everything else gets a generic name.
+    // can see and change it. Everything else gets a generic name.
     // The transform origin needs no transport: it is decomposed into native
     // tracks when they are written.
     const names = [...new Set(anim.animations.map((a) => a.name).filter((n): n is string => n !== undefined))];
@@ -783,7 +783,7 @@ function applyImportedAnimations(
 
     if (names.length > 1) {
       context.warnOnce(
-        'A layer carries several named animations; Figma merges them into one, so a re-export drops their names.',
+        'A layer carries several named animations. Figma merges them into one, so a re-export drops their names.',
       );
     }
 
@@ -935,7 +935,7 @@ export async function importDefinition(definition: DefinitionFile, styleName: st
       );
 
       // The rendered SVG clips only at the canvas (the always-on border
-      // radius clip); component defs render unclipped. createNodeFromSvg
+      // radius clip). Component defs render unclipped. createNodeFromSvg
       // enables clipping by default, which would hide content that leaves
       // the component box — planets' orbiting moon, for instance.
       svgFrame.clipsContent = false;
