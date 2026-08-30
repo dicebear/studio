@@ -80,6 +80,21 @@ function isZeroOpacity(value: unknown): boolean {
   return (typeof value === 'string' || typeof value === 'number') && parseFloat(String(value)) === 0;
 }
 
+/**
+ * Whether an element's own `opacity` is the resting state of an animation.
+ *
+ * The track carries that value in Figma, the attribute stays behind: a layer
+ * resting at zero opacity does not survive Figma's SVG export, so it would
+ * come back from the round trip as a missing element. The export writes the
+ * attribute again from the start of the track.
+ */
+function opacityBelongsToAnimation(element: DefinitionElement): boolean {
+  return (
+    Array.isArray(element.animations) &&
+    element.animations.some((animation) => animation?.tracks?.opacity !== undefined)
+  );
+}
+
 function escapeXml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
@@ -369,7 +384,11 @@ export function createDefinitionSerializer(
 
     let opacityAttribute = '';
 
-    if (attributes.opacity !== undefined && !isReferenceObject(attributes.opacity)) {
+    if (
+      attributes.opacity !== undefined &&
+      !isReferenceObject(attributes.opacity) &&
+      !opacityBelongsToAnimation(element)
+    ) {
       opacityAttribute = ` opacity="${escapeXml(String(attributes.opacity))}"`;
     }
 
@@ -381,7 +400,7 @@ export function createDefinitionSerializer(
 
     const id = `dbimp-ref-${refCounter++}`;
 
-    if (!hidden && !isZeroOpacity(attributes.opacity)) {
+    if (!hidden && (!isZeroOpacity(attributes.opacity) || opacityBelongsToAnimation(element))) {
       sawVisible = true;
     }
 
@@ -456,7 +475,13 @@ export function createDefinitionSerializer(
     const context = resolveColorContext(attributes, inherited);
     let attributeString = '';
 
+    const animatedOpacity = opacityBelongsToAnimation(element);
+
     for (const [key, raw] of Object.entries(attributes)) {
+      if (key === 'opacity' && animatedOpacity) {
+        continue;
+      }
+
       const value = resolveAttributeValue(key, raw, context, scope);
 
       if (value !== null) {
@@ -465,7 +490,8 @@ export function createDefinitionSerializer(
     }
 
     const name = element.name ?? 'g';
-    const childHidden = hidden || HIDDEN_CONTAINERS.has(name) || isZeroOpacity(attributes.opacity);
+    const childHidden =
+      hidden || HIDDEN_CONTAINERS.has(name) || (!animatedOpacity && isZeroOpacity(attributes.opacity));
 
     if (!childHidden && DRAWABLE_ELEMENTS.has(name)) {
       sawVisible = true;

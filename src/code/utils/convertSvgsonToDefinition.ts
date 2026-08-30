@@ -65,9 +65,15 @@ export function convertSvgsonToDefinition(node: INode): DefinitionElement {
     !(result.animations && result.children[0].animations)
   ) {
     const parentAttributes = result.attributes ?? {};
-    const isTransformOnly = Object.keys(parentAttributes).every((k) => k === 'transform');
+    // `color` and `opacity` belong on the reference as much as `transform`
+    // does: the first is what the reference passes down to the component's
+    // `currentColor` layers, the second is the instance's own opacity, and a
+    // group around a single child applies it the same way.
+    const isMergeable = Object.keys(parentAttributes).every(
+      (k) => k === 'transform' || k === 'color' || k === 'opacity',
+    );
 
-    if (isTransformOnly) {
+    if (isMergeable) {
       const [child] = result.children;
       const mergedAttributes = { ...(child.attributes ?? {}) };
       const transformParts = [parentAttributes.transform, mergedAttributes.transform].filter(
@@ -78,9 +84,30 @@ export function convertSvgsonToDefinition(node: INode): DefinitionElement {
         mergedAttributes.transform = transformParts.join(' ');
       }
 
+      if (parentAttributes.color !== undefined && mergedAttributes.color === undefined) {
+        mergedAttributes.color = parentAttributes.color;
+      }
+
+      if (parentAttributes.opacity !== undefined && mergedAttributes.opacity === undefined) {
+        mergedAttributes.opacity = parentAttributes.opacity;
+      }
+
       const animations = result.animations ?? child.animations;
 
       return { ...child, attributes: mergedAttributes, ...(animations ? { animations } : {}) };
+    }
+
+    // A group that has to stay, because of a mask for instance, still hands
+    // its color down: on the reference it says what the component is tinted
+    // with, on the group it only looks like a group property.
+    const [child] = result.children;
+
+    if (parentAttributes.color !== undefined && child.attributes?.color === undefined) {
+      child.attributes = { ...(child.attributes ?? {}), color: parentAttributes.color };
+
+      const { color, ...rest } = parentAttributes;
+
+      result.attributes = rest;
     }
   }
 

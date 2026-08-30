@@ -10,7 +10,8 @@ import { definitionAnimationsToTracks } from '../animation/keyframes';
 import { DefinitionAnimation } from '../animation/types';
 import { isMotionAvailable } from '../utils/motionSupport';
 import { decomposeOriginAnimations } from '../animation/decomposeOrigin';
-import { formatAnimMarkerName } from '../animation/markers';
+import { animationLayerName } from '../animation/names';
+import { CURRENT_COLOR_GROUP } from '../utils/currentColor';
 import {
   createDefinitionSerializer,
   DefinitionSerializer,
@@ -40,6 +41,10 @@ type ImportContext = {
   components: DefinitionComponents;
   componentIndex: Map<string, ComponentNode>;
   paintStylesByGroup: Map<string, PaintStyle[]>;
+  /** The styles that mark a layer as `currentColor`, one per shown color. */
+  currentColorStyles: Map<string, PaintStyle>;
+  /** The per-reference colors, applied once the masters carry the marker. */
+  referenceColors: { instance: InstanceNode; color: PreparedRefColor }[];
   currentColorSentinel: string;
   /**
    * The latest animation end time applied anywhere during this import.
@@ -106,6 +111,14 @@ function createPaintStyles(definition: DefinitionFile, warn: (message: string) =
   const stylesByGroup = new Map<string, PaintStyle[]>();
 
   for (const [groupName, group] of Object.entries(definition.colors ?? {})) {
+    if (groupName === CURRENT_COLOR_GROUP) {
+      // The marker group carries the `currentColor` layers through Figma, so a
+      // palette slot of that name would swallow them on the way back.
+      warn(`palette "${groupName}": the name is reserved for currentColor layers, the palette was not created.`);
+
+      continue;
+    }
+
     const values = group.values ?? [];
     // The zero-padded index keeps the palette order stable: the exporter sorts
     // colors by name before writing the definition values.
@@ -145,6 +158,37 @@ function solidPaintHex(paint: Paint): string | null {
       .padStart(2, '0');
 
   return `#${to255(paint.color.r)}${to255(paint.color.g)}${to255(paint.color.b)}`;
+}
+
+/**
+ * The style that marks a layer as `currentColor` while showing `hex`, created
+ * on first use. The layers keep looking the way the inherited color paints
+ * them, the binding is what carries the meaning.
+ */
+function currentColorStyle(hex: string, context: ImportContext): PaintStyle {
+  const existing = context.currentColorStyles.get(hex);
+
+  if (existing) {
+    return existing;
+  }
+
+  const style = figma.createPaintStyle();
+
+  style.name = `${CURRENT_COLOR_GROUP}/${String(context.currentColorStyles.size + 1).padStart(2, '0')} ${hex.replace('#', '')}`;
+  style.paints = [figma.util.solidPaint(hex)];
+
+  context.currentColorStyles.set(hex, style);
+
+  return style;
+}
+
+/** The color a resolved sentinel paints, as a hex string. */
+function sentinelHex(color: SentinelColor): string | null {
+  if (color.style) {
+    return color.style.paints.length > 0 ? solidPaintHex(color.style.paints[0]) : null;
+  }
+
+  return color.paint ? solidPaintHex(color.paint) : null;
 }
 
 type PaintBinding = {
@@ -334,20 +378,32 @@ async function paintSentinelLayers(
  * sentinel paint until either this override or the final pass over the main
  * components replaces it.
  */
-async function applyReferenceColor(
-  instance: InstanceNode,
-  color: PreparedRefColor,
-  context: ImportContext,
-): Promise<void> {
-  const resolved = resolveSentinelColor(color, context, (value) =>
-    context.warnOnce(`The color "${value}" on a component reference could not be parsed and was dropped.`),
-  );
+async function applyReferenceColors(context: ImportContext): Promise<void> {
+  const markerIds = new Set([...context.currentColorStyles.values()].map((style) => style.id));
 
-  if (!resolved.style && !resolved.paint) {
-    return;
+  for (const { instance, color } of context.referenceColors) {
+    const resolved = resolveSentinelColor(color, context, (value) =>
+      context.warnOnce(`The color "${value}" on a component reference could not be parsed and was dropped.`),
+    );
+
+    if (!resolved.style && !resolved.paint) {
+      continue;
+    }
+
+    for (const node of instance.findAll()) {
+      if (!('fillStyleId' in node) || typeof node.fillStyleId !== 'string' || !markerIds.has(node.fillStyleId)) {
+        continue;
+      }
+
+      if (resolved.style) {
+        await node.setFillStyleIdAsync(resolved.style.id);
+      } else if (resolved.paint && 'fills' in node) {
+        // Assigning paints detaches the inherited style, which is what makes
+        // this an override the export can tell apart from the master.
+        node.fills = [resolved.paint];
+      }
+    }
   }
-
-  await paintSentinelLayers(instance, resolved, context, false);
 }
 
 async function replaceRefPlaceholders(
@@ -398,17 +454,31 @@ async function replaceRefPlaceholders(
     }
 
     if (ref.color) {
-      context.warnOnce(
-        'Colors set on component references cannot round-trip: an export from this file will use each ' +
-          "component's own color instead.",
-      );
-      await applyReferenceColor(instance, ref.color, context);
+      // Applied only after the main components carry the marker style: an
+      // override has to sit on top of what the instance inherits, otherwise
+      // the later binding on the master covers it again.
+      context.referenceColors.push({ instance, color: ref.color });
     }
 
     if (ref.animations) {
       if (isMotionAvailable(instance)) {
+        // The animation rides on a group around the instance, not on the
+        // instance itself: the layer name of an instance already carries the
+        // alias the export reads back, so there is no room for the animation
+        // name next to it.
+        const names = [...new Set(ref.animations.map((a) => a.name).filter((n): n is string => n !== undefined))];
+        const carrier = figma.group([instance], parent, parent.children.indexOf(instance));
+
+        carrier.name = animationLayerName(names.length === 1 ? names[0] : undefined);
+
+        if (names.length > 1) {
+          context.warnOnce(
+            'A layer carries several named animations; Figma merges them into one, so a re-export drops their names.',
+          );
+        }
+
         try {
-          applyTracksToNode(instance, ref.animations, root, context);
+          applyTracksToNode(carrier, ref.animations, root, context);
         } catch (e: any) {
           context.warn(`${scope}: the animation on the reference to "${ref.refName}" could not be applied (${e.message}).`);
         }
@@ -633,21 +703,9 @@ function applyTracksToNode(
   extendTimeline(timelineHost, endTime, context);
 
   for (const [field, track] of entries) {
-    let keyframes = track.keyframes;
-
-    // The definition animates opacity as a multiplier on the element's own
-    // opacity; Figma's OPACITY track is absolute.
-    if (field === 'OPACITY' && 'opacity' in node && node.opacity !== 1) {
-      const base = node.opacity;
-
-      keyframes = keyframes.map((keyframe) => ({
-        ...keyframe,
-        value:
-          keyframe.value.type === 'FLOAT' ? { type: 'FLOAT', value: keyframe.value.value * base } : keyframe.value,
-      }));
-    }
-
-    node.applyManualKeyframeTrack({ type: 'PROPERTY', name: field }, { keyframes });
+    // Both sides read an opacity track as the value itself, not as a factor on
+    // the layer's own opacity, so the keyframes travel as they are.
+    node.applyManualKeyframeTrack({ type: 'PROPERTY', name: field }, { keyframes: track.keyframes });
   }
 
   context.maxTimelineEnd = Math.max(context.maxTimelineEnd, endTime);
@@ -715,13 +773,13 @@ function applyImportedAnimations(
     }
 
     // The marker has served its purpose. The layer name keeps the
-    // animation's name (`dbanim:hop`), where the export reads it back and a
-    // designer can see and change it; everything else gets a generic name.
+    // animation's name (`hop`), where the export reads it back and a designer
+    // can see and change it; everything else gets a generic name.
     // The transform origin needs no transport: it is decomposed into native
     // tracks when they are written.
     const names = [...new Set(anim.animations.map((a) => a.name).filter((n): n is string => n !== undefined))];
 
-    node.name = formatAnimMarkerName(names.length === 1 ? names[0] : undefined) ?? 'animated';
+    node.name = animationLayerName(names.length === 1 ? names[0] : undefined);
 
     if (names.length > 1) {
       context.warnOnce(
@@ -752,10 +810,16 @@ async function bindRemainingCurrentColor(
   context: ImportContext,
 ): Promise<void> {
   for (const [groupName, components] of componentsByGroup) {
-    const resolved = resolveSentinelColor(fallbackColors.get(groupName), context);
+    const inherited = resolveSentinelColor(fallbackColors.get(groupName), context);
+    const hex = sentinelHex(inherited);
+
+    // The layers show the inherited color, but they bind to the currentColor
+    // style rather than to the palette: that is what tells the export they
+    // were `currentColor` and not a color of their own.
+    const carrier: SentinelColor = hex === null ? {} : { style: currentColorStyle(hex, context) };
 
     for (const component of components) {
-      await paintSentinelLayers(component, resolved, context, true, () =>
+      await paintSentinelLayers(component, carrier, context, true, () =>
         context.warnOnce(
           `component "${groupName}" uses currentColor without an inherited color, the affected layers kept a placeholder color.`,
         ),
@@ -825,6 +889,8 @@ export async function importDefinition(definition: DefinitionFile, styleName: st
     components,
     componentIndex,
     paintStylesByGroup,
+    currentColorStyles: new Map(),
+    referenceColors: [],
     currentColorSentinel: serializer.currentColorSentinel,
     maxTimelineEnd: 0,
     warn,
@@ -952,10 +1018,11 @@ export async function importDefinition(definition: DefinitionFile, styleName: st
   }
 
   await bindRemainingCurrentColor(fallbackColors, componentsByGroup, context);
+  await applyReferenceColors(context);
 
   // On the canvas there is no element left to inherit from, so the SVG default
   // for `color` applies. Without this the layers would keep the sentinel.
-  await paintSentinelLayers(frame, { paint: figma.util.solidPaint('#000000') }, context, true);
+  await paintSentinelLayers(frame, { style: currentColorStyle('#000000', context) }, context, true);
 
   const meta = definition.meta ?? {};
   // The file name, not `meta.source.name`: the source names the artwork the

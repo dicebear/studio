@@ -1,5 +1,8 @@
 import { isConstantTrack, tracksToDefinitionAnimation } from '../animation/keyframes';
-import { parseAnimMarkerName } from '../animation/markers';
+import rgbHex from 'rgb-hex';
+
+import { CURRENT_COLOR_GROUP } from '../utils/currentColor';
+import { animationNameFromLayer } from '../animation/names';
 import { findAllInstanceNodes } from '../queries/findAllInstanceNodes';
 import { findAllNodesWithColor } from '../queries/findAllNodesWithColor';
 import { getColorsByNode } from '../utils/getColorsByNode';
@@ -18,6 +21,8 @@ type PendingAnimationInfo = {
   nameOccurrence: number;
   animations: unknown[];
   animKey: number;
+  /** The value the opacity track starts at, when it is not 1. */
+  restingOpacity?: number;
 };
 
 function tick(): Promise<void> {
@@ -117,7 +122,7 @@ async function collectAnimationExportInfo(
           continue;
         }
 
-        let keyframes = track.keyframes as any[];
+        const keyframes = track.keyframes as any[];
 
         // The import stretches an instance's playback clip with a constant
         // span track; it carries no motion and is not part of the design.
@@ -125,41 +130,29 @@ async function collectAnimationExportInfo(
           continue;
         }
 
-        // The definition animates opacity as a multiplier on the element's
-        // own opacity; Figma's OPACITY track is absolute.
-        if (field === 'OPACITY' && 'opacity' in originalNode && originalNode.opacity > 0 && originalNode.opacity !== 1) {
-          const base = originalNode.opacity;
-
-          keyframes = keyframes.map((keyframe) => ({
-            ...keyframe,
-            value:
-              keyframe.value?.type === 'FLOAT'
-                ? { type: 'FLOAT', value: keyframe.value.value / base }
-                : keyframe.value,
-          }));
-        }
-
         tracks[field] = { keyframes };
       }
 
+      // The definition keeps the resting opacity as an attribute, Figma only
+      // in the track, so it is read back from the first keyframe. A layer
+      // resting at zero cannot live in Figma at all (the SVG export drops it),
+      // which is why the import hands the track the whole job.
+      const opacityKeyframes = tracks.OPACITY?.keyframes;
+      const firstOpacity = opacityKeyframes?.[0]?.value;
+      const restingOpacity =
+        firstOpacity?.type === 'FLOAT' && firstOpacity.value !== 1 ? (firstOpacity.value as number) : undefined;
+
       let animation = tracksToDefinitionAnimation(tracks, 0, warn);
 
-      // The `dbanim:` layer name carries the animation's user-selectable
-      // name; the import writes it, designers may edit it. An origin never
-      // travels forward anymore (the import decomposes it into native
-      // tracks); the marker's retired `@x,y` suffix only fills in for files
-      // imported before that change.
-      const marker = parseAnimMarkerName(originalNode.name);
+      // The layer name carries the animation's name; the import writes it,
+      // designers may edit it, and the export normalizes whatever they left
+      // behind.
+      const name = animationNameFromLayer(originalNode.name);
 
-      if (animation && marker) {
+      if (animation && name !== undefined) {
         const { tracks, ...rest } = animation;
 
-        animation = {
-          ...(marker.name !== undefined ? { name: marker.name } : {}),
-          ...rest,
-          ...(marker.origin !== undefined ? { origin: marker.origin } : {}),
-          tracks,
-        };
+        animation = { name, ...rest, tracks };
       }
 
       if (animation) {
@@ -174,6 +167,7 @@ async function collectAnimationExportInfo(
           nameOccurrence,
           animations: [animation],
           animKey: animKey++,
+          restingOpacity,
         });
       }
     }
@@ -218,6 +212,76 @@ async function collectAnimationExportInfo(
   await collectNode(original, clone);
 
   return pending;
+}
+
+
+/**
+ * The color a component reference passes down to the `currentColor` layers of
+ * its component.
+ *
+ * The import paints those layers inside the instance with the reference's
+ * color while the main component keeps the marker style, so the difference
+ * between the two is exactly what the reference contributed. A layer bound to
+ * a palette style gives a color group, a plain paint gives a value, and
+ * anything ambiguous is left alone.
+ */
+async function readReferenceColor(
+  instance: InstanceNode,
+  mainComponent: ComponentNode,
+  styleGroup: (id: string) => Promise<string | undefined>,
+): Promise<{ group?: string; value?: string } | undefined> {
+  const groups = new Set<string>();
+  const values = new Set<string>();
+
+  const fillStyleId = (node: SceneNode): string | undefined =>
+    'fillStyleId' in node && typeof node.fillStyleId === 'string' && node.fillStyleId ? node.fillStyleId : undefined;
+
+  const walk = async (node: SceneNode, master: SceneNode): Promise<void> => {
+    const masterStyle = fillStyleId(master);
+
+    if (masterStyle !== undefined && (await styleGroup(masterStyle)) === CURRENT_COLOR_GROUP) {
+      const ownStyle = fillStyleId(node);
+
+      if (ownStyle !== undefined) {
+        const group = await styleGroup(ownStyle);
+
+        if (group !== undefined && group !== CURRENT_COLOR_GROUP) {
+          groups.add(group);
+        }
+      } else if ('fills' in node && Array.isArray(node.fills) && node.fills.length === 1) {
+        const paint = node.fills[0];
+
+        if (paint.type === 'SOLID') {
+          values.add(`#${rgbHex(Math.round(paint.color.r * 255), Math.round(paint.color.g * 255), Math.round(paint.color.b * 255))}`);
+        }
+      }
+    }
+
+    if ('children' in node && 'children' in master) {
+      const own = await readChildren(node);
+      const theirs = await readChildren(master);
+
+      if (own === undefined || theirs === undefined) {
+        return;
+      }
+
+      for (let i = 0; i < Math.min(own.length, theirs.length); i++) {
+        await walk(own[i], theirs[i]);
+      }
+    }
+  };
+
+  await walk(instance, mainComponent);
+
+  if (groups.size === 1 && values.size === 0) {
+    return { group: [...groups][0] };
+  }
+
+  if (values.size === 1 && groups.size === 0) {
+    return { value: [...values][0] };
+  }
+
+  return undefined;
 }
 
 export async function calculateNodeExportInfo(
@@ -267,6 +331,19 @@ export async function calculateNodeExportInfo(
 
     phase = 'finding the instances';
 
+    // A handful of styles carry every layer of a file, so resolving each id
+    // once keeps the reference-color pass off the plugin bridge.
+    const styleGroups = new Map<string, string | undefined>();
+    const styleGroup = async (id: string): Promise<string | undefined> => {
+      if (!styleGroups.has(id)) {
+        const style = (await figma.getStyleByIdAsync(id)) as BaseStyle | null;
+
+        styleGroups.set(id, style === null ? undefined : getNameParts(style.name).group);
+      }
+
+      return styleGroups.get(id);
+    };
+
     const allInstanceNodes = await findAllInstanceNodes(nodeClone);
 
     phase = 'swapping the instances';
@@ -295,6 +372,14 @@ export async function calculateNodeExportInfo(
       };
 
       nodeExportInfo.componentGroup = resolveComponentName(instanceNode, mainComponent, aliasesEnabled).componentName;
+
+      const referenceColor = await readReferenceColor(instanceNode, mainComponent, styleGroup);
+
+      if (referenceColor?.group !== undefined) {
+        nodeExportInfo.refColorGroup = referenceColor.group;
+      } else if (referenceColor?.value !== undefined) {
+        nodeExportInfo.refColorValue = referenceColor.value;
+      }
 
       const width = instanceNode.width;
       const height = instanceNode.height;
@@ -353,13 +438,28 @@ export async function calculateNodeExportInfo(
       }
 
       if (fillStyle) {
-        nodeExportInfo.fillColorGroup = getNameParts(fillStyle.name).group;
-        nodeExportInfo.fillColorAlpha = getPaintAlpha(fillStyle);
+        const group = getNameParts(fillStyle.name).group;
+
+        // A layer bound to the marker style was `currentColor` before the
+        // import gave it a paint, and it goes back as `currentColor`. Its
+        // alpha belongs to the layer, not to a palette value, so it stays.
+        if (group === CURRENT_COLOR_GROUP) {
+          nodeExportInfo.fillCurrentColor = true;
+        } else {
+          nodeExportInfo.fillColorGroup = group;
+          nodeExportInfo.fillColorAlpha = getPaintAlpha(fillStyle);
+        }
       }
 
       if (strokeStyle) {
-        nodeExportInfo.strokeColorGroup = getNameParts(strokeStyle.name).group;
-        nodeExportInfo.strokeColorAlpha = getPaintAlpha(strokeStyle);
+        const group = getNameParts(strokeStyle.name).group;
+
+        if (group === CURRENT_COLOR_GROUP) {
+          nodeExportInfo.strokeCurrentColor = true;
+        } else {
+          nodeExportInfo.strokeColorGroup = group;
+          nodeExportInfo.strokeColorAlpha = getPaintAlpha(strokeStyle);
+        }
       }
 
       writeNodeExportInfo(colorNode, nodeExportInfo);
@@ -408,6 +508,7 @@ export async function calculateNodeExportInfo(
 
       nodeExportInfo.animations = entry.animations as never;
       nodeExportInfo.animKey = entry.animKey;
+      nodeExportInfo.restingOpacity = entry.restingOpacity;
 
       writeNodeExportInfo(target, nodeExportInfo);
     }

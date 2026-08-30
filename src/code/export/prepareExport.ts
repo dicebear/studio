@@ -5,6 +5,7 @@ import { findAllColorGroups } from '../queries/findAllColorGroups';
 import { getFrameSettings } from '../settings/getFrameSettings';
 import { getComponentGroupSettings } from '../settings/getComponentGroupSettings';
 import { getColorGroupSettings } from '../settings/getColorGroupSettings';
+import { CURRENT_COLOR_GROUP } from '../utils/currentColor';
 import { getColorsByNode } from '../utils/getColorsByNode';
 import { getNameParts } from '../utils/getNameParts';
 import { isSupportedComponent } from '../utils/isSupportedComponent';
@@ -16,6 +17,10 @@ export async function prepareExport(frameSelection: FrameNode): Promise<Export> 
 
   const componentGroups = findAllComponentGroups();
   const colorGroups = await findAllColorGroups();
+
+  // `currentColor` is a marker, not a palette slot: it tells the export which
+  // layers a reference tints, and it never appears in the definition's colors.
+  colorGroups.delete(CURRENT_COLOR_GROUP);
 
   const exportData: Export = {
     frame: {

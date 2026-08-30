@@ -33,6 +33,12 @@ export async function applyNodeExportInfo(svg: string) {
     }
 
     if (nodeExportInfo.componentGroup) {
+      // The placeholder carries no attributes of its own, so the instance's
+      // opacity would be lost with the node it replaces. It rides on a wrapper
+      // group instead, which the definition converter folds onto the
+      // reference.
+      const opacity = resultNode.attributes?.opacity;
+
       resultNode = {
         name: '',
         type: 'text',
@@ -40,6 +46,26 @@ export async function applyNodeExportInfo(svg: string) {
         attributes: {},
         children: [],
       };
+
+      if (typeof opacity === 'string') {
+        resultNode = {
+          name: 'g',
+          type: 'element',
+          value: '',
+          attributes: { opacity },
+          children: [resultNode],
+        };
+      }
+    }
+
+    // The definition paints these layers with `currentColor`, so the color
+    // comes from whatever reference draws the component.
+    if (nodeExportInfo.fillCurrentColor) {
+      resultNode.attributes.fill = 'currentColor';
+    }
+
+    if (nodeExportInfo.strokeCurrentColor) {
+      resultNode.attributes.stroke = 'currentColor';
     }
 
     if (nodeExportInfo.fillColorGroup) {
@@ -88,6 +114,27 @@ export async function applyNodeExportInfo(svg: string) {
       };
     }
 
+    // What the reference passes down to the `currentColor` layers of its
+    // component. A placeholder is a text node and cannot carry attributes, so
+    // it gets a wrapper group, which the definition converter folds back onto
+    // the reference.
+    if (nodeExportInfo.refColorGroup !== undefined || nodeExportInfo.refColorValue !== undefined) {
+      if (resultNode.type !== 'element') {
+        resultNode = {
+          name: 'g',
+          type: 'element',
+          value: '',
+          attributes: {},
+          children: [resultNode],
+        };
+      }
+
+      resultNode.attributes.color =
+        nodeExportInfo.refColorGroup !== undefined
+          ? `{{colors.${nodeExportInfo.refColorGroup}}}`
+          : (nodeExportInfo.refColorValue as string);
+    }
+
     if (nodeExportInfo.animations) {
       // Outside the transform wrappers: Figma composes motion outside the
       // node's resting transform, and the renderer wraps the whole element the
@@ -108,6 +155,12 @@ export async function applyNodeExportInfo(svg: string) {
 
       resultNode.attributes['data-dbanim'] =
         `${nodeExportInfo.animKey ?? 0}:${encodeURIComponent(JSON.stringify(nodeExportInfo.animations))}`;
+
+      // The resting state the animation replaces. Without it a layer that only
+      // shows while animating would sit in the static avatar.
+      if (nodeExportInfo.restingOpacity !== undefined) {
+        resultNode.attributes.opacity = String(nodeExportInfo.restingOpacity);
+      }
     }
 
     return resultNode;
