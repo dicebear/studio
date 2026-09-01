@@ -9,6 +9,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- Export for DiceBear 11.x, the line that plays animations. New frames and imported definitions start on 11.x. An export
+  for 10.x writes the same definition without the animations and says so in a warning.
 - Round-trip animations with Figma Motion. The export turns a layer's keyframe tracks (translation, rotation, scale,
   opacity) into the `animations` blocks of `@dicebear/schema` 1.6, the import writes them back onto the layers. The
   animation name is the layer name. Whatever one side cannot represent, springs or negative delays for example, is
@@ -17,7 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
-- Reference `@dicebear/schema@1.6.1` in exported definition files (was `1.5.1`).
+- Reference `@dicebear/schema@1.6.1` in definition files exported for 11.x. Files for 10.x keep `1.5.1`.
 - Keep definitions stable across an import and the following export: circles that Figma turned into paths are rebuilt,
   the precision comes from the imported file, and the export ends with a newline.
 

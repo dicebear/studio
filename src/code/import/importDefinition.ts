@@ -1095,7 +1095,7 @@ export async function importDefinition(definition: DefinitionFile, styleName: st
   const shapeRendering = definition.attributes?.['shape-rendering'];
 
   setFrameSettings(frame, {
-    dicebearVersion: '10.x',
+    dicebearVersion: '11.x',
     title,
     packageName: '',
     packageVersion: '',

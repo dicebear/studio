@@ -4,7 +4,7 @@ import { Export } from '../types';
 import { normalizeName } from '../utils/normalizeName';
 import { applyNodeExportInfo } from './applyNodeExportInfo';
 import { calculateNodeExportInfo } from './calculateNodeExportInfo';
-import { useDefinitionFile } from '../utils/useDefinitionFile';
+import { useAnimations, useDefinitionFile } from '../utils/useDefinitionFile';
 import { PluginConfig } from 'svgo';
 import { cleanupNumericValues } from './cleanupNumericValues';
 import { convertPathToShape } from './convertPathToShape';
@@ -16,6 +16,7 @@ export async function createTemplateString(
   warn: (message: string) => void = () => {},
 ) {
   const aliasesEnabled = useDefinitionFile(exportData.frame.settings.dicebearVersion);
+  const animationsEnabled = useAnimations(exportData.frame.settings.dicebearVersion);
 
   // Layers in the avatar frame that are bound to the configured background
   // group stay out of the export: the renderer paints that background itself.
@@ -23,7 +24,7 @@ export async function createTemplateString(
     node.type === 'FRAME' ? exportData.frame.settings.backgroundColorGroupName || undefined : undefined;
 
   // Calculate the export info for the node and export to svg
-  let result = await calculateNodeExportInfo(node, aliasesEnabled, ignoreColorGroup, warn);
+  let result = await calculateNodeExportInfo(node, aliasesEnabled, animationsEnabled, ignoreColorGroup, warn);
 
   // Apply export info to svg
   result = await applyNodeExportInfo(result);

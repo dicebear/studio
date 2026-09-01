@@ -100,6 +100,37 @@ async function readChildren(node: SceneNode): Promise<readonly SceneNode[] | und
  * without it: the animations are still collected from the original and their
  * clone nodes are resolved by marker name when the info is written.
  */
+/**
+ * Whether the node or any layer below it carries a keyframe track with at
+ * least one keyframe. Instance children belong to their main component, so
+ * the walk reads an instance's own tracks and stops, like the export does.
+ */
+function hasAnimations(node: SceneNode): boolean {
+  if (!isMotionAvailable(node)) {
+    return false;
+  }
+
+  const animated = (candidate: SceneNode): boolean => {
+    try {
+      const tracks = candidate.manualKeyframeTracks as Record<string, { keyframes?: unknown[] }> | undefined;
+
+      return Object.values(tracks ?? {}).some((track) => (track?.keyframes?.length ?? 0) > 0);
+    } catch {
+      return false;
+    }
+  };
+
+  if (animated(node)) {
+    return true;
+  }
+
+  if (node.type === 'INSTANCE' || !('findOne' in node)) {
+    return false;
+  }
+
+  return node.findOne((child) => animated(child)) !== null;
+}
+
 async function collectAnimationExportInfo(
   original: SceneNode,
   clone: SceneNode,
@@ -397,6 +428,7 @@ function createCurrentColorProbe(
 export async function calculateNodeExportInfo(
   node: ComponentNode | FrameNode,
   aliasesEnabled: boolean,
+  animationsEnabled: boolean,
   ignoreColorGroup?: string,
   warn: (message: string) => void = () => {},
 ) {
@@ -431,12 +463,11 @@ export async function calculateNodeExportInfo(
     nodeClone.clipsContent = true;
 
     // Before the instance swap and the boolean flattening, while the clone
-    // still mirrors the original child for child. Only the 10.x definition
-    // format has a place for animations, and `aliasesEnabled` is set exactly
-    // in that mode.
+    // still mirrors the original child for child. Only the definition format
+    // has a place for animations, and only the 11.x line plays them.
     let pendingAnimationInfo: PendingAnimationInfo[] = [];
 
-    if (aliasesEnabled) {
+    if (aliasesEnabled && animationsEnabled) {
       phase = 'reading the animations';
 
       // One turn of the event loop before walking the fresh copy. Reading a
@@ -445,6 +476,11 @@ export async function calculateNodeExportInfo(
       await tick();
 
       pendingAnimationInfo = await collectAnimationExportInfo(node, nodeClone, warn);
+    } else if (aliasesEnabled && hasAnimations(node)) {
+      warn(
+        'DiceBear 10.x renders every avatar static, so the animations were left out of the export. ' +
+          'Select DiceBear 11.x in the General tab to include them.',
+      );
     }
 
     phase = 'finding the instances';

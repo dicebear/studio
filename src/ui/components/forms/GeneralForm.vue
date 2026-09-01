@@ -12,7 +12,7 @@ const backgroundColors = computed(() => [
   ...Object.keys(store.data!.colors).map((name) => ({ label: name, value: name })),
 ]);
 
-const versions = ['10.x', '9.x', '8.x', '7.x', '6.x', '5.x'];
+const versions = ['11.x', '10.x', '9.x', '8.x', '7.x', '6.x', '5.x'];
 const shapeRenderings = ['auto', 'optimizeSpeed', 'crispEdges', 'geometricPrecision'];
 </script>
 

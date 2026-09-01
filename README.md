@@ -3,13 +3,14 @@
 A Figma plugin that turns a Figma frame of components and color styles into a [DiceBear](https://www.dicebear.com)
 avatar style you can drop straight into your app.
 
-- For DiceBear **10.x** it exports a single JSON
-  [style definition](https://www.dicebear.com/create-styles/definition-schema/).
+- For DiceBear **11.x** it exports a single JSON
+  [style definition](https://www.dicebear.com/create-styles/definition-schema/), animations included.
+- For DiceBear **10.x** it exports the same definition file without the animations, which the 10.x cores cannot play.
 - For DiceBear **9.x** it exports a zip containing a full npm package (sources, tests, `package.json`, `README`,
   license).
-- The Import button works in the other direction: it rebuilds a 10.x definition file inside an empty Figma file, with
-  one component per variant, the palettes as color styles, a generated file thumbnail, and a "Start here" guide next to
-  the avatar frame.
+- The Import button works in the other direction: it rebuilds a definition file inside an empty Figma file, with one
+  component per variant, the palettes as color styles, a generated file thumbnail, and a "Start here" guide next to the
+  avatar frame.
 
 The plugin is published on the Figma Community:
 [DiceBear Studio](https://www.figma.com/community/plugin/1005765655729342787).
