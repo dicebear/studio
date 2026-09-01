@@ -7,6 +7,8 @@ import { calculateNodeExportInfo } from './calculateNodeExportInfo';
 import { useDefinitionFile } from '../utils/useDefinitionFile';
 import { PluginConfig } from 'svgo';
 import { cleanupNumericValues } from './cleanupNumericValues';
+import { convertPathToShape } from './convertPathToShape';
+import { normalizeArcFlags } from './normalizeArcFlags';
 
 export async function createTemplateString(
   exportData: Export,
@@ -46,6 +48,10 @@ export async function createTemplateString(
         floatPrecision: exportData.frame.settings.precision,
       },
     },
+    convertPathToShape({
+      floatPrecision: exportData.frame.settings.precision,
+    }),
+    normalizeArcFlags(),
     {
       name: 'convertTransform',
       params: {

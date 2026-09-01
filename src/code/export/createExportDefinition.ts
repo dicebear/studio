@@ -119,7 +119,7 @@ export async function createExportDefinition(exportData: Export, warn: (message:
   );
   const bodyContentWithSvg = `<svg>${bodyContent}</svg>`;
 
-  return JSON.stringify(
+  const definition = JSON.stringify(
     removeEmptyValuesFromObject({
       $schema: 'https://cdn.hopjs.net/npm/@dicebear/schema@1.6.1/dist/definition.min.json',
       $comment:
@@ -154,4 +154,8 @@ export async function createExportDefinition(exportData: Export, warn: (message:
     undefined,
     2,
   );
+
+  // Definition files in a repository end with a newline. Without it every
+  // export would show that one difference against the file it came from.
+  return `${definition}\n`;
 }

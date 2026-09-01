@@ -5,6 +5,7 @@ import { setFrameSettings } from '../settings/setFrameSettings';
 import { isSupportedColor } from '../utils/isSupportedColor';
 import { isSupportedComponent } from '../utils/isSupportedComponent';
 import { createGuide } from './createGuide';
+import { definitionPrecision } from './definitionPrecision';
 import { createThumbnail } from './createThumbnail';
 import { definitionAnimationsToTracks } from '../animation/keyframes';
 import { DefinitionAnimation } from '../animation/types';
@@ -1109,7 +1110,7 @@ export async function importDefinition(definition: DefinitionFile, styleName: st
     shapeRendering: typeof shapeRendering === 'string' ? shapeRendering : 'auto',
     onPreCreateHook: '',
     onPostCreateHook: '',
-    precision: 3,
+    precision: definitionPrecision(definition),
     fileShareUrl: '',
   });
 
