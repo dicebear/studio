@@ -97,7 +97,32 @@ export type NodeExportInfo = {
    */
   fillColorAlpha?: number;
   strokeColorAlpha?: number;
+  /**
+   * The layer was painted with `currentColor` before the import bound it to
+   * the marker style, so it takes its color from the reference again.
+   */
+  fillCurrentColor?: boolean;
+  strokeCurrentColor?: boolean;
+  /**
+   * The color a component reference passes down to the `currentColor` layers
+   * of its component, read from the instance's own paints.
+   */
+  refColorGroup?: string;
+  refColorValue?: string;
   componentGroup?: string;
+  /** Declarative animations read from the node's manual keyframe tracks. */
+  animations?: import('./animation/types').DefinitionAnimation[];
+  /**
+   * Distinguishes identically-animated siblings, or svgo's `mergePaths` would
+   * fuse them into one element and halve the animation.
+   */
+  animKey?: number;
+  /**
+   * The opacity the element rests at with the animation off, taken from the
+   * start of its opacity track. Figma layers never carry it themselves: a
+   * layer resting at zero does not survive the SVG export.
+   */
+  restingOpacity?: number;
 };
 
 export type DefinitionElement = {
@@ -105,6 +130,7 @@ export type DefinitionElement = {
   name?: string;
   value?: string;
   attributes?: Record<string, string | { type: string; name: string }>;
+  animations?: import('./animation/types').DefinitionAnimation[];
   children?: DefinitionElement[];
 };
 

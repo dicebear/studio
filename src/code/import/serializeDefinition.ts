@@ -1,3 +1,4 @@
+import { DefinitionAnimation } from '../animation/types';
 import { DefinitionComponentBase, DefinitionComponents, DefinitionElement, DefinitionFile } from '../types';
 
 export type PreparedRefColor = {
@@ -14,12 +15,21 @@ export type PreparedRef = {
   refName: string;
   /** The `color` the reference passes down for `currentColor` layers. */
   color?: PreparedRefColor;
+  /** Declarative animations carried on the reference, applied to the instance. */
+  animations?: DefinitionAnimation[];
+};
+
+export type PreparedAnim = {
+  /** Marker id, becomes the layer name when Figma imports the SVG. */
+  id: string;
+  animations: DefinitionAnimation[];
 };
 
 export type SerializedSvg = {
   /** Null when nothing importable remains after skipping unsupported content. */
   svg: string | null;
   refs: PreparedRef[];
+  anims: PreparedAnim[];
 };
 
 export type DefinitionSerializer = {
@@ -68,6 +78,21 @@ const HIDDEN_CONTAINERS = new Set(['clipPath', 'defs', 'mask', 'pattern', 'symbo
 
 function isZeroOpacity(value: unknown): boolean {
   return (typeof value === 'string' || typeof value === 'number') && parseFloat(String(value)) === 0;
+}
+
+/**
+ * Whether an element's own `opacity` is the resting state of an animation.
+ *
+ * The track carries that value in Figma, the attribute stays behind: a layer
+ * resting at zero opacity does not survive Figma's SVG export, so it would
+ * come back from the round trip as a missing element. The export writes the
+ * attribute again from the start of the track.
+ */
+function opacityBelongsToAnimation(element: DefinitionElement): boolean {
+  return (
+    Array.isArray(element.animations) &&
+    element.animations.some((animation) => animation?.tracks?.opacity !== undefined)
+  );
 }
 
 function escapeXml(value: string): string {
@@ -176,6 +201,8 @@ export function createDefinitionSerializer(
   const usedColorGroups = new Set<string>();
   const warnedMessages = new Set<string>();
   let refCounter = 0;
+  let animCounter = 0;
+  let anims: PreparedAnim[] = [];
   let sawVisible = false;
 
   const warnOnce = (message: string): void => {
@@ -357,7 +384,11 @@ export function createDefinitionSerializer(
 
     let opacityAttribute = '';
 
-    if (attributes.opacity !== undefined && !isReferenceObject(attributes.opacity)) {
+    if (
+      attributes.opacity !== undefined &&
+      !isReferenceObject(attributes.opacity) &&
+      !opacityBelongsToAnimation(element)
+    ) {
       opacityAttribute = ` opacity="${escapeXml(String(attributes.opacity))}"`;
     }
 
@@ -369,11 +400,16 @@ export function createDefinitionSerializer(
 
     const id = `dbimp-ref-${refCounter++}`;
 
-    if (!hidden && !isZeroOpacity(attributes.opacity)) {
+    if (!hidden && (!isZeroOpacity(attributes.opacity) || opacityBelongsToAnimation(element))) {
       sawVisible = true;
     }
 
-    refs.push({ id, refName, color });
+    // The placeholder rect does not survive the import, so animations on the
+    // reference ride along on the ref and land on the created instance.
+    const animations =
+      Array.isArray(element.animations) && element.animations.length > 0 ? element.animations : undefined;
+
+    refs.push({ id, refName, color, animations });
 
     const transformAttribute = transformParts.length > 0 ? ` transform="${escapeXml(transformParts.join(' '))}"` : '';
 
@@ -423,7 +459,9 @@ export function createDefinitionSerializer(
     }
 
     if (element.name === 'style') {
-      warnOnce('<style> elements were skipped, CSS (including animations) cannot be imported into Figma.');
+      warnOnce(
+        '<style> elements were skipped, raw CSS cannot be imported into Figma. Declarative animations round-trip instead.',
+      );
 
       return '';
     }
@@ -436,7 +474,13 @@ export function createDefinitionSerializer(
     const context = resolveColorContext(attributes, inherited);
     let attributeString = '';
 
+    const animatedOpacity = opacityBelongsToAnimation(element);
+
     for (const [key, raw] of Object.entries(attributes)) {
+      if (key === 'opacity' && animatedOpacity) {
+        continue;
+      }
+
       const value = resolveAttributeValue(key, raw, context, scope);
 
       if (value !== null) {
@@ -445,7 +489,8 @@ export function createDefinitionSerializer(
     }
 
     const name = element.name ?? 'g';
-    const childHidden = hidden || HIDDEN_CONTAINERS.has(name) || isZeroOpacity(attributes.opacity);
+    const childHidden =
+      hidden || HIDDEN_CONTAINERS.has(name) || (!animatedOpacity && isZeroOpacity(attributes.opacity));
 
     if (!childHidden && DRAWABLE_ELEMENTS.has(name)) {
       sawVisible = true;
@@ -453,9 +498,27 @@ export function createDefinitionSerializer(
 
     const childContent = serializeElements(element.children ?? [], context, scope, refs, childHidden);
 
-    return childContent === ''
-      ? `<${name}${attributeString}/>`
-      : `<${name}${attributeString}>${childContent}</${name}>`;
+    // An animated element gets a marker id so the importer can find its node
+    // and write the keyframe tracks. When the element carries an id of its
+    // own (it may be the target of a `url(#…)` reference), a wrapper group
+    // takes the marker instead. Animating the wrapper is render-equivalent.
+    let markerId: string | null = null;
+
+    if (!hidden && Array.isArray(element.animations) && element.animations.length > 0) {
+      markerId = `dbimp-anim-${animCounter++}`;
+
+      anims.push({ id: markerId, animations: element.animations });
+    }
+
+    const markerWrap = markerId !== null && attributes.id !== undefined;
+    const ownMarker = markerId !== null && !markerWrap ? ` id="${markerId}"` : '';
+
+    const markup =
+      childContent === ''
+        ? `<${name}${ownMarker}${attributeString}/>`
+        : `<${name}${ownMarker}${attributeString}>${childContent}</${name}>`;
+
+    return markerWrap ? `<g id="${markerId}">${markup}</g>` : markup;
   };
 
   const serialize = (elements: DefinitionElement[], width: number, height: number, scope: string): SerializedSvg => {
@@ -466,6 +529,7 @@ export function createDefinitionSerializer(
     const rootContext = resolveColorContext(rootRaw, {});
 
     sawVisible = false;
+    anims = [];
 
     const content = serializeElements(elements, rootContext, scope, refs, false);
 
@@ -473,7 +537,7 @@ export function createDefinitionSerializer(
     // permanently transparent overlays of the CSS animation components, would
     // only import empty layers.
     if (content.trim() === '' || !sawVisible) {
-      return { svg: null, refs: [] };
+      return { svg: null, refs: [], anims: [] };
     }
 
     let rootAttributes = '';
@@ -495,6 +559,7 @@ export function createDefinitionSerializer(
         `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" ` +
         `viewBox="0 0 ${width} ${height}"${rootAttributes}>${content}</svg>`,
       refs,
+      anims,
     };
   };
 

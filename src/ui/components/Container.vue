@@ -33,6 +33,11 @@ const normalizeData = computed(() => {
 
 const hasPendingNormalize = computed(() => (normalizeData.value ? hasPendingChanges(normalizeData.value) : false));
 
+const warningPanels = computed(() => [
+  { title: 'Import warnings', items: store.importWarnings, dismiss: () => (store.importWarnings = []) },
+  { title: 'Export warnings', items: store.exportWarnings, dismiss: () => (store.exportWarnings = []) },
+]);
+
 function onExport() {
   postPluginMessage('export');
 }
@@ -108,15 +113,17 @@ function onNormalize() {
       <LoadedScene v-else-if="store.type === 'loaded' && store.data" />
       <LoadingScene v-else />
     </div>
-    <div v-if="store.importWarnings.length > 0" class="warnings">
-      <div class="warnings-header">
-        <strong>Import warnings ({{ store.importWarnings.length }})</strong>
-        <Button label="Dismiss" severity="secondary" text size="small" @click="store.importWarnings = []" />
+    <template v-for="panel in warningPanels" :key="panel.title">
+      <div v-if="panel.items.length > 0" class="warnings">
+        <div class="warnings-header">
+          <strong>{{ panel.title }} ({{ panel.items.length }})</strong>
+          <Button label="Dismiss" severity="secondary" text size="small" @click="panel.dismiss()" />
+        </div>
+        <ul class="warnings-list">
+          <li v-for="(warning, index) in panel.items" :key="index">{{ warning }}</li>
+        </ul>
       </div>
-      <ul class="warnings-list">
-        <li v-for="(warning, index) in store.importWarnings" :key="index">{{ warning }}</li>
-      </ul>
-    </div>
+    </template>
     <div class="bottom">
       <input ref="fileInput" class="file-input" type="file" accept=".json,application/json" @change="onImportFile" />
       <Button

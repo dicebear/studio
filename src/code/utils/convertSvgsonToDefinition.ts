@@ -10,6 +10,22 @@ export function convertSvgsonToDefinition(node: INode): DefinitionElement {
   };
 
   if (result.attributes) {
+    // The `data-dbanim` carrier attribute becomes the `animations` member
+    // again. The animKey prefix in front of the payload is dropped. The
+    // attribute goes in every case: it is not part of the definition format,
+    // and a payload no longer worth reading is better dropped than fatal.
+    const rawAnimations = result.attributes['data-dbanim'];
+
+    if (typeof rawAnimations === 'string') {
+      delete result.attributes['data-dbanim'];
+
+      try {
+        result.animations = JSON.parse(decodeURIComponent(rawAnimations.slice(rawAnimations.indexOf(':') + 1)));
+      } catch {
+        // An animation lost is better than an export that cannot finish.
+      }
+    }
+
     for (const key of Object.keys(result.attributes)) {
       const value = result.attributes[key];
 
@@ -45,16 +61,25 @@ export function convertSvgsonToDefinition(node: INode): DefinitionElement {
 
   // Skip collapse when the wrapping <g> carries mask/clip-path/filter/etc:
   // those establish rendering contexts that don't transfer to the child <use>.
+  // A wrapper animation moves onto the reference. When both carry animations,
+  // the wrapper stays a real group so neither timeline is lost.
   if (
     result.type === 'element' &&
     result.name === 'g' &&
     result.children?.length === 1 &&
-    result.children[0].type === 'component'
+    result.children[0].type === 'component' &&
+    !(result.animations && result.children[0].animations)
   ) {
     const parentAttributes = result.attributes ?? {};
-    const isTransformOnly = Object.keys(parentAttributes).every((k) => k === 'transform');
+    // `color` and `opacity` belong on the reference as much as `transform`
+    // does: the first is what the reference passes down to the component's
+    // `currentColor` layers, the second is the instance's own opacity, and a
+    // group around a single child applies it the same way.
+    const isMergeable = Object.keys(parentAttributes).every(
+      (k) => k === 'transform' || k === 'color' || k === 'opacity',
+    );
 
-    if (isTransformOnly) {
+    if (isMergeable) {
       const [child] = result.children;
       const mergedAttributes = { ...(child.attributes ?? {}) };
       const transformParts = [parentAttributes.transform, mergedAttributes.transform].filter(
@@ -65,7 +90,30 @@ export function convertSvgsonToDefinition(node: INode): DefinitionElement {
         mergedAttributes.transform = transformParts.join(' ');
       }
 
-      return { ...child, attributes: mergedAttributes };
+      if (parentAttributes.color !== undefined && mergedAttributes.color === undefined) {
+        mergedAttributes.color = parentAttributes.color;
+      }
+
+      if (parentAttributes.opacity !== undefined && mergedAttributes.opacity === undefined) {
+        mergedAttributes.opacity = parentAttributes.opacity;
+      }
+
+      const animations = result.animations ?? child.animations;
+
+      return { ...child, attributes: mergedAttributes, ...(animations ? { animations } : {}) };
+    }
+
+    // A group that has to stay, because of a mask for instance, still hands
+    // its color down: on the reference it says what the component is tinted
+    // with, on the group it only looks like a group property.
+    const [child] = result.children;
+
+    if (parentAttributes.color !== undefined && child.attributes?.color === undefined) {
+      child.attributes = { ...(child.attributes ?? {}), color: parentAttributes.color };
+
+      const { color, ...rest } = parentAttributes;
+
+      result.attributes = rest;
     }
   }
 

@@ -5,10 +5,19 @@ import { setFrameSettings } from '../settings/setFrameSettings';
 import { isSupportedColor } from '../utils/isSupportedColor';
 import { isSupportedComponent } from '../utils/isSupportedComponent';
 import { createGuide } from './createGuide';
+import { definitionPrecision } from './definitionPrecision';
 import { createThumbnail } from './createThumbnail';
+import { definitionAnimationsToTracks } from '../animation/keyframes';
+import { DefinitionAnimation } from '../animation/types';
+import { isMotionAvailable } from '../utils/motionSupport';
+import { decomposeOriginAnimations } from '../animation/decomposeOrigin';
+import { animationLayerName } from '../animation/names';
+import { CURRENT_COLOR_GROUP } from '../utils/currentColor';
+import { tick } from '../utils/tick';
 import {
   createDefinitionSerializer,
   DefinitionSerializer,
+  PreparedAnim,
   PreparedRef,
   PreparedRefColor,
   resolveMasterName,
@@ -22,6 +31,7 @@ type PreparedVariant = {
   name: string;
   svg: string;
   refs: PreparedRef[];
+  anims: PreparedAnim[];
 };
 
 type PreparedGroup = {
@@ -33,14 +43,22 @@ type ImportContext = {
   components: DefinitionComponents;
   componentIndex: Map<string, ComponentNode>;
   paintStylesByGroup: Map<string, PaintStyle[]>;
+  /** The styles that mark a layer as `currentColor`, one per shown color. */
+  currentColorStyles: Map<string, PaintStyle>;
+  /** The per-reference colors, applied once the masters carry the marker. */
+  referenceColors: { instance: InstanceNode; color: PreparedRefColor }[];
   currentColorSentinel: string;
+  /**
+   * The latest animation end time applied anywhere during this import.
+   * Components extend their own timelines as tracks are written, but the
+   * avatar frame only holds instances, so its timeline is extended to this
+   * value at the end — otherwise the preview stops at Figma's default
+   * duration mid-cycle.
+   */
+  maxTimelineEnd: number;
   warn: (message: string) => void;
   warnOnce: (message: string) => void;
 };
-
-function tick(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 0));
-}
 
 async function postProgress(message: string): Promise<void> {
   figma.ui.postMessage({ type: 'loading', data: { message } });
@@ -91,6 +109,14 @@ function createPaintStyles(definition: DefinitionFile, warn: (message: string) =
   const stylesByGroup = new Map<string, PaintStyle[]>();
 
   for (const [groupName, group] of Object.entries(definition.colors ?? {})) {
+    if (groupName === CURRENT_COLOR_GROUP) {
+      // The marker group carries the `currentColor` layers through Figma, so a
+      // palette slot of that name would swallow them on the way back.
+      warn(`palette "${groupName}": the name is reserved for currentColor layers, the palette was not created.`);
+
+      continue;
+    }
+
     const values = group.values ?? [];
     // The zero-padded index keeps the palette order stable: the exporter sorts
     // colors by name before writing the definition values.
@@ -130,6 +156,37 @@ function solidPaintHex(paint: Paint): string | null {
       .padStart(2, '0');
 
   return `#${to255(paint.color.r)}${to255(paint.color.g)}${to255(paint.color.b)}`;
+}
+
+/**
+ * The style that marks a layer as `currentColor` while showing `hex`, created
+ * on first use. The layers keep looking the way the inherited color paints
+ * them, the binding is what carries the meaning.
+ */
+function currentColorStyle(hex: string, context: ImportContext): PaintStyle {
+  const existing = context.currentColorStyles.get(hex);
+
+  if (existing) {
+    return existing;
+  }
+
+  const style = figma.createPaintStyle();
+
+  style.name = `${CURRENT_COLOR_GROUP}/${String(context.currentColorStyles.size + 1).padStart(2, '0')} ${hex.replace('#', '')}`;
+  style.paints = [figma.util.solidPaint(hex)];
+
+  context.currentColorStyles.set(hex, style);
+
+  return style;
+}
+
+/** The color a resolved sentinel paints, as a hex string. */
+function sentinelHex(color: SentinelColor): string | null {
+  if (color.style) {
+    return color.style.paints.length > 0 ? solidPaintHex(color.style.paints[0]) : null;
+  }
+
+  return color.paint ? solidPaintHex(color.paint) : null;
 }
 
 type PaintBinding = {
@@ -270,6 +327,19 @@ function resolveSentinelColor(
  * sentinel. `skipInstances` keeps the pass off nodes that belong to a nested
  * component, those are resolved through their own main component.
  */
+/** Whether a node still shows the `currentColor` sentinel on a fill or stroke. */
+function hasSentinelPaint(node: SceneNode, context: ImportContext): boolean {
+  if ('fills' in node && Array.isArray(node.fills) && node.fills.length === 1) {
+    if (solidPaintHex(node.fills[0]) === context.currentColorSentinel) {
+      return true;
+    }
+  }
+
+  return (
+    'strokes' in node && node.strokes.length === 1 && solidPaintHex(node.strokes[0]) === context.currentColorSentinel
+  );
+}
+
 async function paintSentinelLayers(
   root: SceneNode & ChildrenMixin,
   color: SentinelColor,
@@ -317,22 +387,41 @@ async function paintSentinelLayers(
 /**
  * Resolves the `currentColor` sentinel inside one instance. Layers keep the
  * sentinel paint until either this override or the final pass over the main
- * components replaces it.
+ * components replaces it. Fills and strokes both carry the marker, so both are
+ * overridden.
  */
-async function applyReferenceColor(
-  instance: InstanceNode,
-  color: PreparedRefColor,
-  context: ImportContext,
-): Promise<void> {
-  const resolved = resolveSentinelColor(color, context, (value) =>
-    context.warnOnce(`The color "${value}" on a component reference could not be parsed and was dropped.`),
-  );
+async function applyReferenceColors(context: ImportContext): Promise<void> {
+  const markerIds = new Set([...context.currentColorStyles.values()].map((style) => style.id));
 
-  if (!resolved.style && !resolved.paint) {
-    return;
+  for (const { instance, color } of context.referenceColors) {
+    const resolved = resolveSentinelColor(color, context, (value) =>
+      context.warnOnce(`The color "${value}" on a component reference could not be parsed and was dropped.`),
+    );
+
+    if (!resolved.style && !resolved.paint) {
+      continue;
+    }
+
+    for (const node of instance.findAll()) {
+      // Assigning paints detaches the inherited style, which is what makes this
+      // an override the export can tell apart from the master.
+      if ('fillStyleId' in node && typeof node.fillStyleId === 'string' && markerIds.has(node.fillStyleId)) {
+        if (resolved.style) {
+          await node.setFillStyleIdAsync(resolved.style.id);
+        } else if (resolved.paint) {
+          node.fills = [resolved.paint];
+        }
+      }
+
+      if ('strokeStyleId' in node && typeof node.strokeStyleId === 'string' && markerIds.has(node.strokeStyleId)) {
+        if (resolved.style) {
+          await node.setStrokeStyleIdAsync(resolved.style.id);
+        } else if (resolved.paint) {
+          node.strokes = [resolved.paint];
+        }
+      }
+    }
   }
-
-  await paintSentinelLayers(instance, resolved, context, false);
 }
 
 async function replaceRefPlaceholders(
@@ -383,11 +472,34 @@ async function replaceRefPlaceholders(
     }
 
     if (ref.color) {
-      context.warnOnce(
-        'Colors set on component references cannot round-trip: an export from this file will use each ' +
-          "component's own color instead.",
-      );
-      await applyReferenceColor(instance, ref.color, context);
+      // Applied only after the main components carry the marker style: an
+      // override has to sit on top of what the instance inherits, otherwise
+      // the later binding on the master covers it again.
+      context.referenceColors.push({ instance, color: ref.color });
+    }
+
+    if (ref.animations) {
+      if (isMotionAvailable(instance)) {
+        // The animation rides on a group around the instance, not on the
+        // instance itself: the layer name of an instance already carries the
+        // alias the export reads back, so there is no room for the animation
+        // name next to it.
+        const carrier = figma.group([instance], parent, parent.children.indexOf(instance));
+
+        nameAnimatedLayer(carrier, ref.animations, context);
+
+        try {
+          applyTracksToNode(carrier, ref.animations, root, context);
+        } catch (e: any) {
+          context.warn(
+            `${scope}: the animation on the reference to "${ref.refName}" could not be applied (${e.message}).`,
+          );
+        }
+      } else {
+        context.warnOnce(
+          'Figma animations are not available for your account. The animations of this definition were skipped.',
+        );
+      }
     }
 
     placeholder.remove();
@@ -419,7 +531,7 @@ function prepareComponents(
         continue;
       }
 
-      variants.push({ name: variantName, svg: serialized.svg, refs: serialized.refs });
+      variants.push({ name: variantName, svg: serialized.svg, refs: serialized.refs, anims: serialized.anims });
     }
 
     if (variants.length === 0) {
@@ -563,6 +675,159 @@ function isInsideInstance(node: BaseNode, root: SceneNode): boolean {
 }
 
 /**
+ * Names the layer that carries a set of animations. Figma merges everything on
+ * one node into a single timeline, so only a single shared name survives.
+ */
+function nameAnimatedLayer(node: SceneNode, animations: DefinitionAnimation[], context: ImportContext): void {
+  const names = [...new Set(animations.map((animation) => animation.name).filter((n): n is string => n !== undefined))];
+
+  node.name = animationLayerName(names.length === 1 ? names[0] : undefined);
+
+  if (names.length > 1) {
+    context.warnOnce(
+      'A layer carries several named animations. Figma merges them into one, so a re-export drops their names.',
+    );
+  }
+}
+
+/**
+ * Writes the manual keyframe tracks a node's definition animations describe,
+ * and stretches the containing timeline to the animation's end.
+ */
+function applyTracksToNode(
+  node: SceneNode,
+  animations: DefinitionAnimation[],
+  timelineHost: SceneNode,
+  context: ImportContext,
+): void {
+  // Non-center origins become center-based motion plus a compensating
+  // translation before conversion, so Figma plays them correctly. The node's
+  // bounds are the model's fill-box.
+  const decomposed = decomposeOriginAnimations(
+    animations,
+    { width: node.width, height: node.height },
+    context.warnOnce,
+  );
+
+  const { tracks, endTime } = definitionAnimationsToTracks(decomposed, context.warnOnce);
+
+  const entries = Object.entries(tracks);
+
+  if (entries.length === 0) {
+    return;
+  }
+
+  // The order matters: Figma rejects edits to a timeline that already holds
+  // keyframes beyond its end (the UI cannot even create such keyframes). So
+  // first materialize the timeline with a minimal in-range keyframe, then
+  // extend it to the full cycle, and only then write the real tracks — which
+  // replace the bootstrap track again.
+  const [bootstrapField, bootstrapTrack] = entries[0];
+
+  node.applyManualKeyframeTrack(
+    { type: 'PROPERTY', name: bootstrapField },
+    { keyframes: [{ ...bootstrapTrack.keyframes[0], timelinePosition: 0 }] },
+  );
+
+  extendTimeline(timelineHost, endTime, context);
+
+  for (const [field, track] of entries) {
+    // Both sides read an opacity track as the value itself, not as a factor on
+    // the layer's own opacity, so the keyframes travel as they are.
+    node.applyManualKeyframeTrack({ type: 'PROPERTY', name: field }, { keyframes: track.keyframes });
+  }
+
+  // One Figma timeline serves every layer, so animations of different lengths
+  // cannot all loop on it.
+  if (context.maxTimelineEnd > 0 && Math.abs(context.maxTimelineEnd - endTime) > 1e-6) {
+    context.warnOnce(
+      'Layers with animations of different lengths share one Figma timeline. ' +
+        'The shorter ones run once per pass and then wait for the longest.',
+    );
+  }
+
+  context.maxTimelineEnd = Math.max(context.maxTimelineEnd, endTime);
+}
+
+/**
+ * Extends the timeline of the node's containing top-level frame so it covers
+ * the given end time. A shorter timeline would stop the preview mid-cycle.
+ */
+function extendTimeline(node: SceneNode, endTime: number, context: ImportContext): void {
+  if (endTime <= 0) {
+    return;
+  }
+
+  try {
+    const [timeline] = node.timelines;
+
+    if (!timeline) {
+      context.warnOnce('The timeline duration could not be adjusted. The animation may be cut off in the preview.');
+
+      return;
+    }
+
+    if (timeline.duration < endTime) {
+      node.setTimelineDuration(timeline.id, endTime);
+    }
+  } catch {
+    context.warnOnce('The timeline duration could not be adjusted. The animation may be cut off in the preview.');
+  }
+}
+
+/**
+ * Finds the marker layers the serializer emitted for animated elements and
+ * writes their keyframe tracks. The markers are renamed in every case — a
+ * later export must never see a `dbimp-anim-…` layer name — so the fallback
+ * for users without motion access still walks all of them.
+ */
+function applyImportedAnimations(
+  root: SceneNode & ChildrenMixin,
+  anims: PreparedAnim[],
+  context: ImportContext,
+  scope: string,
+): void {
+  if (anims.length === 0) {
+    return;
+  }
+
+  const motionAvailable = isMotionAvailable(root);
+
+  if (!motionAvailable) {
+    context.warnOnce(
+      'Figma animations are not available for your account. The animations of this definition were skipped.',
+    );
+  }
+
+  for (const anim of anims) {
+    const node = root.findOne((candidate) => candidate.name === anim.id && !isInsideInstance(candidate, root));
+
+    if (!node) {
+      context.warn(`${scope}: an animated element was lost during the SVG import, its animation was dropped.`);
+
+      continue;
+    }
+
+    // The marker has served its purpose. The layer name keeps the
+    // animation's name (`hop`), where the export reads it back and a designer
+    // can see and change it. Everything else gets a generic name.
+    // The transform origin needs no transport: it is decomposed into native
+    // tracks when they are written.
+    nameAnimatedLayer(node, anim.animations, context);
+
+    if (!motionAvailable) {
+      continue;
+    }
+
+    try {
+      applyTracksToNode(node, anim.animations, root, context);
+    } catch (e: any) {
+      context.warn(`${scope}: the animation could not be applied (${e.message}).`);
+    }
+  }
+}
+
+/**
  * Resolves `currentColor` layers that are still on the sentinel color inside
  * the main components. Instances that received a per-reference override keep
  * it, all others inherit this fallback.
@@ -573,10 +838,16 @@ async function bindRemainingCurrentColor(
   context: ImportContext,
 ): Promise<void> {
   for (const [groupName, components] of componentsByGroup) {
-    const resolved = resolveSentinelColor(fallbackColors.get(groupName), context);
+    const inherited = resolveSentinelColor(fallbackColors.get(groupName), context);
+    const hex = sentinelHex(inherited);
+
+    // The layers show the inherited color, but they bind to the currentColor
+    // style rather than to the palette: that is what tells the export they
+    // were `currentColor` and not a color of their own.
+    const carrier: SentinelColor = hex === null ? {} : { style: currentColorStyle(hex, context) };
 
     for (const component of components) {
-      await paintSentinelLayers(component, resolved, context, true, () =>
+      await paintSentinelLayers(component, carrier, context, true, () =>
         context.warnOnce(
           `component "${groupName}" uses currentColor without an inherited color, the affected layers kept a placeholder color.`,
         ),
@@ -646,7 +917,10 @@ export async function importDefinition(definition: DefinitionFile, styleName: st
     components,
     componentIndex,
     paintStylesByGroup,
+    currentColorStyles: new Map(),
+    referenceColors: [],
     currentColorSentinel: serializer.currentColorSentinel,
+    maxTimelineEnd: 0,
     warn,
     warnOnce,
   };
@@ -687,6 +961,18 @@ export async function importDefinition(definition: DefinitionFile, styleName: st
         context,
         `component "${group.name}" variant "${variant.name}"`,
       );
+
+      // The rendered SVG clips only at the canvas (the always-on border
+      // radius clip). Component defs render unclipped. createNodeFromSvg
+      // enables clipping by default, which would hide content that leaves
+      // the component box — planets' orbiting moon, for instance.
+      svgFrame.clipsContent = false;
+
+      // Before the frame becomes a component: setTimelineDuration works on
+      // frames but silently fails on components (the API accepts the value
+      // and reads it back, yet the player and the UI keep the old duration).
+      // The timeline created and extended here survives the conversion.
+      applyImportedAnimations(svgFrame, variant.anims, context, `component "${group.name}" variant "${variant.name}"`);
 
       const component = figma.createComponentFromNode(svgFrame);
 
@@ -745,6 +1031,13 @@ export async function importDefinition(definition: DefinitionFile, styleName: st
     avatarPage.appendChild(frame);
     await bindColorStyles(frame, bindings, warnOnce);
     await replaceRefPlaceholders(frame, canvasSerialized.refs, context, 'canvas');
+    applyImportedAnimations(frame, canvasSerialized.anims, context, 'canvas');
+
+    // The frame plays the component timelines through its instances, so its
+    // own timeline must span the longest cycle applied anywhere.
+    if (context.maxTimelineEnd > 0 && isMotionAvailable(frame)) {
+      extendTimeline(frame, context.maxTimelineEnd, context);
+    }
   } else {
     frame = figma.createFrame();
     frame.resize(canvas.width, canvas.height);
@@ -753,10 +1046,17 @@ export async function importDefinition(definition: DefinitionFile, styleName: st
   }
 
   await bindRemainingCurrentColor(fallbackColors, componentsByGroup, context);
+  await applyReferenceColors(context);
 
   // On the canvas there is no element left to inherit from, so the SVG default
-  // for `color` applies. Without this the layers would keep the sentinel.
-  await paintSentinelLayers(frame, { paint: figma.util.solidPaint('#000000') }, context, true);
+  // for `color` applies. Without this the layers would keep the sentinel. The
+  // style is only created when a layer actually needs it, otherwise every
+  // import would leave an unused black style behind.
+  const canvasSentinel = frame.findOne((node) => !isInsideInstance(node, frame) && hasSentinelPaint(node, context));
+
+  if (canvasSentinel) {
+    await paintSentinelLayers(frame, { style: currentColorStyle('#000000', context) }, context, true);
+  }
 
   const meta = definition.meta ?? {};
   // The file name, not `meta.source.name`: the source names the artwork the
@@ -810,7 +1110,7 @@ export async function importDefinition(definition: DefinitionFile, styleName: st
     shapeRendering: typeof shapeRendering === 'string' ? shapeRendering : 'auto',
     onPreCreateHook: '',
     onPostCreateHook: '',
-    precision: 3,
+    precision: definitionPrecision(definition),
     fileShareUrl: '',
   });
 

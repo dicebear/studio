@@ -7,8 +7,14 @@ import { calculateNodeExportInfo } from './calculateNodeExportInfo';
 import { useDefinitionFile } from '../utils/useDefinitionFile';
 import { PluginConfig } from 'svgo';
 import { cleanupNumericValues } from './cleanupNumericValues';
+import { convertPathToShape } from './convertPathToShape';
+import { normalizeArcFlags } from './normalizeArcFlags';
 
-export async function createTemplateString(exportData: Export, node: FrameNode | ComponentNode) {
+export async function createTemplateString(
+  exportData: Export,
+  node: FrameNode | ComponentNode,
+  warn: (message: string) => void = () => {},
+) {
   const aliasesEnabled = useDefinitionFile(exportData.frame.settings.dicebearVersion);
 
   // Layers in the avatar frame that are bound to the configured background
@@ -17,7 +23,7 @@ export async function createTemplateString(exportData: Export, node: FrameNode |
     node.type === 'FRAME' ? exportData.frame.settings.backgroundColorGroupName || undefined : undefined;
 
   // Calculate the export info for the node and export to svg
-  let result = await calculateNodeExportInfo(node, aliasesEnabled, ignoreColorGroup);
+  let result = await calculateNodeExportInfo(node, aliasesEnabled, ignoreColorGroup, warn);
 
   // Apply export info to svg
   result = await applyNodeExportInfo(result);
@@ -42,6 +48,10 @@ export async function createTemplateString(exportData: Export, node: FrameNode |
         floatPrecision: exportData.frame.settings.precision,
       },
     },
+    convertPathToShape({
+      floatPrecision: exportData.frame.settings.precision,
+    }),
+    normalizeArcFlags(),
     {
       name: 'convertTransform',
       params: {
