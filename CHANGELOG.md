@@ -5,6 +5,22 @@ All notable changes to DiceBear Studio for Figma will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Round-trip animations with Figma Motion. The export turns a layer's keyframe tracks (translation, rotation, scale,
+  opacity) into the `animations` blocks of `@dicebear/schema` 1.6, the import writes them back onto the layers. The
+  animation name is the layer name. Whatever one side cannot represent, springs or negative delays for example, is
+  approximated or skipped with a warning. Both directions need Figma's motion API.
+- Round-trip `currentColor`, reference colors, and opacity of component references.
+
+### Changed
+
+- Reference `@dicebear/schema@1.6.1` in exported definition files (was `1.5.1`).
+- Keep definitions stable across an import and the following export: circles that Figma turned into paths are rebuilt,
+  the precision comes from the imported file, and the export ends with a newline.
+
 ## [39] - 2026-08-27
 
 ### Changed
