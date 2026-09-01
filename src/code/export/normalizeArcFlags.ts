@@ -27,11 +27,11 @@ const ARGUMENTS: Record<string, number> = {
  * back and forth between round-trips while the picture never changes. Pinning
  * it removes that noise from the diff.
  *
- * The dicebear CLI carries the same rule. Changes belong in both.
- *
  * Only an exact match counts. On a chord a little shorter than the diameter the
  * two arcs sit on different centers, and a couple of thousandths in the chord
  * already move the middle of the arc by two tenths.
+ *
+ * The dicebear CLI carries the same rule. Changes belong in both.
  */
 export function normalizeArcFlags(): CustomPlugin {
   return {
@@ -71,7 +71,7 @@ function pinHalfCircles(d: string): string | null {
   while (index < tokens.length) {
     const token = tokens[index][0];
 
-    if (/[a-zA-Z]/.test(token)) {
+    if (/^[a-zA-Z]$/.test(token)) {
       command = token;
       index += 1;
 
