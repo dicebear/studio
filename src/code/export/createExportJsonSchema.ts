@@ -71,7 +71,11 @@ export function createExportJsonSchema(exportData: Export): JSONSchema7 {
         type: 'string',
         pattern: '^(transparent|[a-fA-F0-9]{6})$',
       },
-      default: Object.values(colorGroup.collection).map((v) => v.value),
+      // The same order the definition lists the palette in, sorted by the
+      // color's name in Figma.
+      default: Object.entries(colorGroup.collection)
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([, v]) => v.value),
     };
 
     if (colorGroup.isUsedByComponents) {
