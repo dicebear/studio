@@ -5,7 +5,7 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: false,
     target: 'es2017',
-    minify: 'esbuild',
+    minify: true,
     lib: {
       entry: 'src/code/index.ts',
       formats: ['iife'],
@@ -14,7 +14,6 @@ export default defineConfig({
     },
     rollupOptions: {
       output: {
-        inlineDynamicImports: true,
         extend: true,
       },
     },

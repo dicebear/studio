@@ -1,5 +1,5 @@
 // @ts-ignore
-import { optimize } from 'svgo/dist/svgo.browser.js';
+import { optimize } from 'svgo/browser';
 import { Export } from '../types';
 import { normalizeName } from '../utils/normalizeName';
 import { applyNodeExportInfo } from './applyNodeExportInfo';

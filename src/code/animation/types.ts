@@ -44,7 +44,7 @@ export type DefinitionAnimation = {
 
 /** The subset of Figma's motion easing object the plugin reads and writes. */
 export type FigmaEasing = {
-  type: string;
+  type: MotionEasing['type'];
   easingFunctionCubicBezier?: { x1: number; y1: number; x2: number; y2: number };
   easingFunctionSpring?: { bounce: number };
 };

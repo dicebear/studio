@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { definitionEasingToFigma, figmaEasingToDefinition } from './easing';
-import { DefinitionEasing } from './types';
+import { DefinitionEasing, FigmaEasing } from './types';
 
 const noWarn = () => {
   throw new Error('unexpected warning');
@@ -82,7 +82,11 @@ describe('figmaEasingToDefinition', () => {
   it('falls back to linear for unknown types with a warning', () => {
     const warnings: string[] = [];
 
-    expect(figmaEasingToDefinition({ type: 'SOMETHING_NEW' }, (message) => warnings.push(message))).toEqual('linear');
+    // A type Figma adds later must not break the import, so the cast bypasses
+    // the current union on purpose.
+    const unknown = { type: 'SOMETHING_NEW' } as unknown as FigmaEasing;
+
+    expect(figmaEasingToDefinition(unknown, (message) => warnings.push(message))).toEqual('linear');
     expect(warnings).toHaveLength(1);
   });
 });
