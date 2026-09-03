@@ -15,10 +15,10 @@ export function useAnimations(dicebearVersion: string): boolean {
 }
 
 /**
- * The `$schema` an exported definition references. 1.6 introduced the
- * animation blocks, so a 10.x definition points at the last release before
- * them.
+ * The `$schema` an exported definition references. Schema 2 belongs to the
+ * 11.x line with its animation blocks, so a 10.x definition points at the
+ * last release before them.
  */
 export function definitionSchemaVersion(dicebearVersion: string): string {
-  return useAnimations(dicebearVersion) ? '1.6.1' : '1.5.1';
+  return useAnimations(dicebearVersion) ? '2.0.1' : '1.5.1';
 }
