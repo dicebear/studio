@@ -1,15 +1,25 @@
-import type { Export } from '../types';
+import type { Export, FrameSettings } from '../types';
 
-export function getLicenseAsText(exportData: Export): string {
-  const licenseName = exportData.frame.settings.licenseName.trim();
-  const licenseUrl = exportData.frame.settings.licenseUrl.trim();
-  const licenseText = exportData.frame.settings.licenseText.trim();
+export type LicenseFields = Pick<
+  FrameSettings,
+  'licenseName' | 'licenseUrl' | 'licenseText' | 'creator' | 'homepage' | 'sourceTitle' | 'source'
+>;
 
-  const creatorName = exportData.frame.settings.creator.trim();
-  const creatorUrl = exportData.frame.settings.homepage.trim();
+/**
+ * The one-line credit that goes into the definition's `meta.license.text`.
+ * A text the settings already carry wins, otherwise it is composed from the
+ * source, the creator and the license name.
+ */
+export function composeLicenseText(settings: LicenseFields): string {
+  const licenseName = settings.licenseName.trim();
+  const licenseUrl = settings.licenseUrl.trim();
+  const licenseText = settings.licenseText.trim();
 
-  const sourceName = exportData.frame.settings.sourceTitle.trim();
-  const sourceUrl = exportData.frame.settings.source.trim();
+  const creatorName = settings.creator.trim();
+  const creatorUrl = settings.homepage.trim();
+
+  const sourceName = settings.sourceTitle.trim();
+  const sourceUrl = settings.source.trim();
 
   if (licenseText) {
     return licenseText;
@@ -39,4 +49,8 @@ export function getLicenseAsText(exportData: Export): string {
   }
 
   return result;
+}
+
+export function getLicenseAsText(exportData: Export): string {
+  return composeLicenseText(exportData.frame.settings);
 }

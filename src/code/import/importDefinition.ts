@@ -1,4 +1,10 @@
-import { ComponentGroupSettings, DefinitionComponentBase, DefinitionComponents, DefinitionFile } from '../types';
+import {
+  ComponentGroupSettings,
+  DefinitionComponentBase,
+  DefinitionComponents,
+  DefinitionFile,
+  FrameSettings,
+} from '../types';
 import { setColorGroupSettings } from '../settings/setColorGroupSettings';
 import { setComponentGroupSettings } from '../settings/setComponentGroupSettings';
 import { setFrameSettings } from '../settings/setFrameSettings';
@@ -7,6 +13,7 @@ import { isSupportedComponent } from '../utils/isSupportedComponent';
 import { createGuide } from './createGuide';
 import { definitionPrecision } from './definitionPrecision';
 import { createThumbnail } from './createThumbnail';
+import { createLicense } from './createLicense';
 import { definitionAnimationsToTracks } from '../animation/keyframes';
 import { DefinitionAnimation } from '../animation/types';
 import { isMotionAvailable } from '../utils/motionSupport';
@@ -1076,7 +1083,7 @@ export async function importDefinition(definition: DefinitionFile, styleName: st
 
   const shapeRendering = definition.attributes?.['shape-rendering'];
 
-  setFrameSettings(frame, {
+  const frameSettings: FrameSettings = {
     dicebearVersion: '11.x',
     title,
     packageName: '',
@@ -1094,7 +1101,9 @@ export async function importDefinition(definition: DefinitionFile, styleName: st
     onPostCreateHook: '',
     precision: definitionPrecision(definition),
     fileShareUrl: '',
-  });
+  };
+
+  setFrameSettings(frame, frameSettings);
 
   for (const [groupName, variantNames] of createdVariants) {
     const entry = components[groupName] as DefinitionComponentBase;
@@ -1160,6 +1169,26 @@ export async function importDefinition(definition: DefinitionFile, styleName: st
     guide = await createGuide(avatarPage, frame, { paintStylesByGroup, warnOnce });
   } catch (e: any) {
     warn(`The guide could not be created (${e.message}).`);
+  }
+
+  // The license gets a page of its own, so it is found without the plugin.
+  // Without a license the card would credit an unknown designer, which is
+  // worse than no card.
+  if (frameSettings.licenseName.trim() || frameSettings.licenseText.trim()) {
+    await postProgress('Adding the license');
+
+    const licensePage = figma.createPage();
+
+    licensePage.name = 'License';
+
+    try {
+      await createLicense(licensePage, { settings: frameSettings, warnOnce });
+    } catch (e: any) {
+      licensePage.remove();
+      warn(`The License page could not be created (${e.message}).`);
+    }
+  } else {
+    warn('The definition names no license, the License page was skipped.');
   }
 
   await figma.setCurrentPageAsync(avatarPage);

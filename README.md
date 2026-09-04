@@ -9,8 +9,8 @@ avatar style you can drop straight into your app.
 - For DiceBear **9.x** it exports a zip containing a full npm package (sources, tests, `package.json`, `README`,
   license).
 - The Import button works in the other direction: it rebuilds a definition file inside an empty Figma file, with one
-  component per variant, the palettes as color styles, a generated file thumbnail, and a "Start here" guide next to the
-  avatar frame.
+  component per variant, the palettes as color styles, a generated file thumbnail, a "Start here" guide next to the
+  avatar frame, and a License page with the credits of the definition.
 
 The plugin is published on the Figma Community:
 [DiceBear Studio](https://www.figma.com/community/plugin/1005765655729342787).
