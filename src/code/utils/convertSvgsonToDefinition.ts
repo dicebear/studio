@@ -94,8 +94,12 @@ export function convertSvgsonToDefinition(node: INode): DefinitionElement {
         mergedAttributes.color = parentAttributes.color;
       }
 
-      if (parentAttributes.opacity !== undefined && mergedAttributes.opacity === undefined) {
-        mergedAttributes.opacity = parentAttributes.opacity;
+      // Two opacities compose by multiplication, the group's and the child's.
+      if (parentAttributes.opacity !== undefined) {
+        mergedAttributes.opacity =
+          mergedAttributes.opacity === undefined
+            ? parentAttributes.opacity
+            : String(Number(parentAttributes.opacity) * Number(mergedAttributes.opacity));
       }
 
       const animations = result.animations ?? child.animations;

@@ -1,3 +1,4 @@
+import rgbHex from 'rgb-hex';
 import { ComponentGroupSettings, DefinitionComponentBase, DefinitionComponents, DefinitionFile } from '../types';
 import { setColorGroupSettings } from '../settings/setColorGroupSettings';
 import { setComponentGroupSettings } from '../settings/setComponentGroupSettings';
@@ -150,12 +151,11 @@ function solidPaintHex(paint: Paint): string | null {
     return null;
   }
 
-  const to255 = (value: number) =>
-    Math.round(value * 255)
-      .toString(16)
-      .padStart(2, '0');
-
-  return `#${to255(paint.color.r)}${to255(paint.color.g)}${to255(paint.color.b)}`;
+  return `#${rgbHex(
+    Math.round(paint.color.r * 255),
+    Math.round(paint.color.g * 255),
+    Math.round(paint.color.b * 255),
+  )}`;
 }
 
 /**
@@ -1067,21 +1067,15 @@ export async function importDefinition(definition: DefinitionFile, styleName: st
   frame.x = 0;
   frame.y = 0;
 
-  // A background layer bound to the background palette makes the frame usable
-  // as it is, for people who copy it without ever running the plugin. The
-  // export ignores layers bound to the configured background group.
+  // The frame's own fill carries the background palette, so the frame looks
+  // finished for people who copy it without ever running the plugin. The
+  // export renders the frame contents only, which leaves that fill out of the
+  // definition. Layers bound to the background palette stay in, they are
+  // ordinary layers to the export.
   const backgroundStyle = paintStylesByGroup.get('background')?.[0];
 
   if (backgroundStyle) {
-    const background = figma.createRectangle();
-
-    background.name = 'background';
-    frame.insertChild(0, background);
-    background.resize(frame.width, frame.height);
-    background.x = 0;
-    background.y = 0;
-    background.constraints = { horizontal: 'SCALE', vertical: 'SCALE' };
-    await background.setFillStyleIdAsync(backgroundStyle.id);
+    await frame.setFillStyleIdAsync(backgroundStyle.id);
   }
 
   for (const groupName of Object.keys(definition.colors ?? {})) {

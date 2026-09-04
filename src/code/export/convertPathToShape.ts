@@ -1,4 +1,5 @@
 import type { CustomPlugin } from 'svgo';
+import { roundTo } from '../utils/roundTo';
 
 interface Point {
   x: number;
@@ -423,7 +424,7 @@ function ellipseDistance(shape: Ellipse, point: Point): number {
 function shortestForm<T extends object>(values: T, precision: number, agrees: (candidate: T) => boolean): T | null {
   for (let digits = 0; digits <= precision; digits++) {
     const candidate = Object.fromEntries(
-      Object.entries(values).map(([key, value]) => [key, Number((value as number).toFixed(digits))]),
+      Object.entries(values).map(([key, value]) => [key, roundTo(value as number, digits)]),
     ) as T;
 
     if (agrees(candidate)) {

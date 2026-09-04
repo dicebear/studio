@@ -18,13 +18,8 @@ export async function createTemplateString(
   const aliasesEnabled = useDefinitionFile(exportData.frame.settings.dicebearVersion);
   const animationsEnabled = useAnimations(exportData.frame.settings.dicebearVersion);
 
-  // Layers in the avatar frame that are bound to the configured background
-  // group stay out of the export: the renderer paints that background itself.
-  const ignoreColorGroup =
-    node.type === 'FRAME' ? exportData.frame.settings.backgroundColorGroupName || undefined : undefined;
-
   // Calculate the export info for the node and export to svg
-  let result = await calculateNodeExportInfo(node, aliasesEnabled, animationsEnabled, ignoreColorGroup, warn);
+  let result = await calculateNodeExportInfo(node, aliasesEnabled, animationsEnabled, warn);
 
   // Apply export info to svg
   result = await applyNodeExportInfo(result);

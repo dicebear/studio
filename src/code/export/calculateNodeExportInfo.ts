@@ -34,6 +34,26 @@ type PendingAnimationInfo = {
  * animation info stamp their own findings into the clone names, so a name
  * collected earlier only matches again once that payload is stripped.
  */
+/**
+ * The node and its descendants in document order, without the internals of
+ * instances. Matches the boundary of the collecting walk.
+ */
+function listOutsideInstances(node: SceneNode): SceneNode[] {
+  const result: SceneNode[] = [];
+
+  const walk = (current: SceneNode) => {
+    result.push(current);
+
+    if (current.type !== 'INSTANCE' && 'children' in current) {
+      current.children.forEach(walk);
+    }
+  };
+
+  walk(node);
+
+  return result;
+}
+
 function layerName(node: SceneNode): string {
   const nodeNameData = decodeNodeNameData(node.name);
 
@@ -188,9 +208,14 @@ async function collectAnimationExportInfo(
       // The definition keeps the resting opacity as an attribute, Figma only
       // in the track, so it is read back from the first keyframe. A layer
       // resting at zero cannot live in Figma at all (the SVG export drops it),
-      // which is why the import hands the track the whole job.
+      // which is why the import hands the track the whole job. Nothing in the
+      // API promises the keyframes in timeline order, so the earliest one is
+      // picked, not the first one.
       const opacityKeyframes = tracks.OPACITY?.keyframes;
-      const firstOpacity = opacityKeyframes?.[0]?.value;
+      const firstOpacity = opacityKeyframes?.reduce(
+        (earliest, keyframe) => (keyframe.timelinePosition < earliest.timelinePosition ? keyframe : earliest),
+        opacityKeyframes[0],
+      )?.value;
       const restingOpacity =
         firstOpacity?.type === 'FLOAT' && firstOpacity.value !== 1 ? (firstOpacity.value as number) : undefined;
 
@@ -429,7 +454,6 @@ export async function calculateNodeExportInfo(
   node: ComponentNode | FrameNode,
   aliasesEnabled: boolean,
   animationsEnabled: boolean,
-  ignoreColorGroup?: string,
   warn: (message: string) => void = () => {},
 ) {
   const cloneComponent = figma.createComponent();
@@ -569,30 +593,11 @@ export async function calculateNodeExportInfo(
     const allNodesWithColor = await findAllNodesWithColor(nodeClone);
 
     for (const colorNode of allNodesWithColor) {
-      // A parent bound to the ignored group may already have taken this node
-      // with it.
-      if (colorNode.removed) {
-        continue;
-      }
-
       const nodeExportInfo = readNodeExportInfo(colorNode);
       const nodeColors = await getColorsByNode(colorNode);
 
       const fillStyle = nodeColors.get('fill');
       const strokeStyle = nodeColors.get('stroke');
-
-      if (ignoreColorGroup) {
-        // Layers bound to the background group stay out of the export at any
-        // depth, the renderer paints that background itself.
-        if (
-          (fillStyle && getNameParts(fillStyle.name).group === ignoreColorGroup) ||
-          (strokeStyle && getNameParts(strokeStyle.name).group === ignoreColorGroup)
-        ) {
-          colorNode.remove();
-
-          continue;
-        }
-      }
 
       if (fillStyle) {
         const group = getNameParts(fillStyle.name).group;
@@ -648,8 +653,11 @@ export async function calculateNodeExportInfo(
         let candidates = nodesByName.get(entry.nodeName);
 
         if (candidates === undefined) {
-          // The exported node itself first, the way the collecting walk saw it.
-          candidates = [nodeClone as SceneNode, ...nodeClone.findAll(() => true)].filter(
+          // The exported node itself first, the way the collecting walk saw
+          // it. The walk stopped at instances, so the candidates do too: the
+          // swapped instances hold the helper rectangle, and its name would
+          // shift the count.
+          candidates = listOutsideInstances(nodeClone as SceneNode).filter(
             (candidate) => layerName(candidate) === entry.nodeName,
           );
           nodesByName.set(entry.nodeName, candidates);

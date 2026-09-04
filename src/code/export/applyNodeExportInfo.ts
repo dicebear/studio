@@ -182,11 +182,16 @@ export async function applyNodeExportInfo(svg: string) {
 function passPaintToChildren(node: INode, channel: 'fill' | 'stroke', alpha: number): void {
   const opacityAttribute = `${channel}-opacity`;
   const groupKey = channel === 'fill' ? 'fillColorGroup' : 'strokeColorGroup';
+  const currentColorKey = channel === 'fill' ? 'fillCurrentColor' : 'strokeCurrentColor';
 
   for (const child of node.children) {
     // A descendant bound to a palette of its own brings that palette's alpha
-    // along and is rewritten when the walk reaches it.
-    if (readNodeExportInfo(child)[groupKey]) {
+    // along and is rewritten when the walk reaches it. One bound to the
+    // `currentColor` marker keeps its own paint and opacity for the same
+    // reason.
+    const childInfo = readNodeExportInfo(child);
+
+    if (childInfo[groupKey] || childInfo[currentColorKey]) {
       continue;
     }
 

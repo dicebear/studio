@@ -173,10 +173,6 @@ export function definitionAnimationsToTracks(
         }
       }
 
-      const lastKeyframe = figmaKeyframes[figmaKeyframes.length - 1];
-
-      endTime = Math.max(endTime, lastKeyframe.timelinePosition);
-
       const field = FIELD_BY_TRACK[trackName];
 
       if (tracks[field]) {
@@ -184,6 +180,10 @@ export function definitionAnimationsToTracks(
 
         continue;
       }
+
+      const lastKeyframe = figmaKeyframes[figmaKeyframes.length - 1];
+
+      endTime = Math.max(endTime, lastKeyframe.timelinePosition);
 
       tracks[field] = { keyframes: figmaKeyframes };
     }

@@ -44,6 +44,12 @@ describe('convertSvgsonToDefinition', () => {
     expect(element).toMatchObject({ type: 'component', name: 'shape', attributes: { opacity: '.38' } });
   });
 
+  it('multiplies the opacity of a wrapping group with the one of the reference', async () => {
+    const element = await convert('<g opacity=".5"><use href="#component-shape" opacity=".3"/></g>');
+
+    expect(element).toMatchObject({ type: 'component', name: 'shape', attributes: { opacity: '0.15' } });
+  });
+
   it('leaves the reference its own color', async () => {
     const element = await convert('<g color="#ffffff"><use href="#component-shape" color="#000000"/></g>');
 

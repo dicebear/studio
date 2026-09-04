@@ -59,6 +59,11 @@ export function normalizeArcFlags(): CustomPlugin {
  * when nothing changed or the path cannot be read with confidence.
  */
 function pinHalfCircles(d: string): string | null {
+  // Most paths carry no arc, so they skip the tokenizing.
+  if (!/[Aa]/.test(d)) {
+    return null;
+  }
+
   const tokens = [...d.matchAll(TOKENS)];
   const positions: number[] = [];
   let command = '';

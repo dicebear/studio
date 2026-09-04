@@ -12,16 +12,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Export for DiceBear 11.x, the line that plays animations. New frames and imported definitions start on 11.x. An export
   for 10.x writes the same definition without the animations and says so in a warning.
 - Round-trip animations with Figma Motion. The export turns a layer's keyframe tracks (translation, rotation, scale,
-  opacity) into the `animations` blocks of `@dicebear/schema` 1.6, the import writes them back onto the layers. The
+  opacity) into the `animations` blocks of `@dicebear/schema` 2.0, the import writes them back onto the layers. The
   animation name is the layer name. Whatever one side cannot represent, springs or negative delays for example, is
   approximated or skipped with a warning. Both directions need Figma's motion API.
 - Round-trip `currentColor`, reference colors, and opacity of component references.
 
 ### Changed
 
-- Reference `@dicebear/schema@1.6.1` in definition files exported for 11.x. Files for 10.x keep `1.5.1`.
+- Reference `@dicebear/schema@2.0.1` in definition files exported for 11.x. Files for 10.x keep `1.5.1`.
 - Keep definitions stable across an import and the following export: circles that Figma turned into paths are rebuilt,
   the precision comes from the imported file, and the export ends with a newline.
+- Export layers bound to the background palette like any other layer. Version 39 dropped them from the definition, which
+  also removed layers that use the background color on purpose. The import now binds the background palette to the fill
+  of the avatar frame instead of adding a background rectangle. The export renders the frame contents only, so that fill
+  stays out of the definition. A file imported with version 39 still holds the rectangle, delete it before the next
+  export.
 
 ## [39] - 2026-08-27
 
