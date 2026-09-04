@@ -1152,6 +1152,9 @@ export async function importDefinition(definition: DefinitionFile, styleName: st
     await createThumbnail(thumbnailPage, {
       definition,
       title,
+      frame,
+      paintStylesByGroup,
+      componentsByGroup,
       warnOnce,
       progress: postProgress,
     });

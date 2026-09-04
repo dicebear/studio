@@ -1,11 +1,18 @@
 import { Avatar, Style } from '@dicebear/core';
 import { DefinitionFile } from '../types';
 import { loadFirstFont } from '../utils/loadFirstFont';
+import { tick } from '../utils/tick';
+import { componentTransform, multiply, Picks } from './componentTransform';
 import { BRAND_ACCENT, BRAND_BACKGROUND, LOGO_SVG } from './logo';
 
 export type ThumbnailOptions = {
   definition: DefinitionFile;
   title: string;
+  /** The finished avatar frame, the sample tiles are clones of it. */
+  frame: FrameNode;
+  paintStylesByGroup: Map<string, PaintStyle[]>;
+  /** The imported main components, named `group/variant`. */
+  componentsByGroup: Map<string, ComponentNode[]>;
   warnOnce: (message: string) => void;
   progress: (message: string) => Promise<void>;
 };
@@ -61,24 +68,178 @@ const TILE_SEEDS = [
 ];
 
 /**
- * Renders one sample avatar with the DiceBear renderer, so the thumbnail
- * shows exactly what the style produces: probabilities, weights, palette
- * rules like `contrastTo`, everything comes from the real render pipeline.
- * Returns null when the renderer or the SVG import rejects the definition.
+ * Asks the DiceBear renderer what it would draw for the seed: the variant of
+ * every component, the color of every palette, the transform of every
+ * component. Probabilities, weights and palette rules like `contrastTo` all
+ * come from the real resolver, the tile only has to apply the result.
  */
-function renderSampleAvatar(style: Style, seed: string, onError: (message: string) => void): FrameNode | null {
-  try {
-    const svg = new Avatar(style, { seed, size: TILE_SIZE, borderRadius: 50 })
-      .toString()
-      .replace(/<metadata[\s\S]*?<\/metadata>/g, '')
-      .replace(/<!--[\s\S]*?-->/g, '');
+function resolvePicks(style: Style, seed: string): Picks {
+  return new Avatar(style, { seed }).toJSON().options as Picks;
+}
 
-    return figma.createNodeFromSvg(svg);
-  } catch (e: any) {
-    onError(String(e?.message ?? e));
+function pickHex(picks: Picks, group: string): string | null {
+  const value = picks[`${group}Color`];
+  const hex = Array.isArray(value) ? value[0] : value;
 
-    return null;
+  return typeof hex === 'string' ? normalizeHex(hex) : null;
+}
+
+function normalizeHex(hex: string): string {
+  return hex.replace('#', '').toLowerCase();
+}
+
+/**
+ * The name the resolver keys its picks by. An instance the import renamed
+ * carries an alias, everything else is named after its main component.
+ */
+function pickName(instance: InstanceNode, group: string): string {
+  return instance.name.includes('/') ? group : instance.name;
+}
+
+/**
+ * Walks the tile top-down and swaps every instance to the variant the
+ * resolver picked, hides the components it left out, and applies the picked
+ * transforms. Parents go first: swapping an instance replaces its nested
+ * instances, so those are read only after the swap.
+ */
+async function applyVariantPicks(
+  root: SceneNode & ChildrenMixin,
+  picks: Picks,
+  variantsByGroup: Map<string, Map<string, ComponentNode>>,
+): Promise<void> {
+  const queue: (SceneNode & ChildrenMixin)[] = [root];
+
+  while (queue.length > 0) {
+    const parent = queue.shift()!;
+
+    for (const child of parent.children) {
+      if (child.type !== 'INSTANCE') {
+        if ('children' in child) {
+          queue.push(child);
+        }
+
+        continue;
+      }
+
+      const main = await child.getMainComponentAsync();
+      const group = main?.name.split('/')[0];
+      const variants = group === undefined ? undefined : variantsByGroup.get(group);
+
+      if (!main || group === undefined || !variants) {
+        continue;
+      }
+
+      const name = pickName(child, group);
+      const variant = picks[`${name}Variant`];
+      const target = typeof variant === 'string' ? variants.get(variant) : undefined;
+
+      if (!target) {
+        // No variant means the resolver left the component out.
+        child.visible = false;
+
+        continue;
+      }
+
+      if (target.id !== main.id) {
+        child.swapComponent(target);
+
+        if (name !== group) {
+          child.name = name;
+        }
+      }
+
+      const matrix = componentTransform(picks, name, child.width, child.height);
+
+      if (matrix) {
+        child.relativeTransform = multiply(child.relativeTransform, matrix);
+      }
+
+      queue.push(child);
+    }
   }
+}
+
+/**
+ * Rebinds every layer that sits on a palette style to the style of the color
+ * the resolver picked for that palette. Layers inside instances take the
+ * binding as an override.
+ */
+async function applyColorPicks(
+  root: SceneNode & ChildrenMixin,
+  picks: Picks,
+  paintStylesByGroup: Map<string, PaintStyle[]>,
+): Promise<void> {
+  const groupByStyleId = new Map<string, string>();
+  const targetByGroup = new Map<string, string>();
+
+  for (const [group, styles] of paintStylesByGroup) {
+    const hex = pickHex(picks, group);
+
+    for (const style of styles) {
+      groupByStyleId.set(style.id, group);
+
+      // The style name carries the hex the palette entry was created from.
+      if (hex !== null && normalizeHex(style.name.split(' ').pop() ?? '') === hex) {
+        targetByGroup.set(group, style.id);
+      }
+    }
+  }
+
+  if (targetByGroup.size === 0) {
+    return;
+  }
+
+  for (const node of [root, ...root.findAll()]) {
+    if ('fillStyleId' in node && typeof node.fillStyleId === 'string') {
+      const target = targetByGroup.get(groupByStyleId.get(node.fillStyleId) ?? '');
+
+      if (target && target !== node.fillStyleId) {
+        await node.setFillStyleIdAsync(target);
+      }
+    }
+
+    if ('strokeStyleId' in node && typeof node.strokeStyleId === 'string') {
+      const target = targetByGroup.get(groupByStyleId.get(node.strokeStyleId) ?? '');
+
+      if (target && target !== node.strokeStyleId) {
+        await node.setStrokeStyleIdAsync(target);
+      }
+    }
+  }
+}
+
+/**
+ * Builds one sample avatar as a clone of the avatar frame with the resolver's
+ * picks applied, so the tile stays editable like the frame itself: variants
+ * swap through the instance dropdown, colors rebind to the palette styles.
+ */
+async function createSampleAvatar(
+  tile: FrameNode,
+  style: Style,
+  seed: string,
+  options: ThumbnailOptions,
+  variantsByGroup: Map<string, Map<string, ComponentNode>>,
+): Promise<void> {
+  const picks = resolvePicks(style, seed);
+  const clone = options.frame.clone();
+
+  tile.appendChild(clone);
+  clone.name = seed;
+  clone.x = 0;
+  clone.y = 0;
+
+  // The settings live on the avatar frame alone. A copy that carried them
+  // would look like a second style to the export.
+  for (const key of clone.getPluginDataKeys()) {
+    clone.setPluginData(key, '');
+  }
+
+  await applyVariantPicks(clone, picks, variantsByGroup);
+  await applyColorPicks(clone, picks, options.paintStylesByGroup);
+
+  clone.rescale(TILE_SIZE / options.frame.width);
+  clone.x = 0;
+  clone.y = 0;
 }
 
 async function createTitle(frame: FrameNode, title: string, warnOnce: (message: string) => void): Promise<void> {
@@ -130,6 +291,22 @@ function createBadge(frame: FrameNode, warnOnce: (message: string) => void): voi
   }
 }
 
+function indexVariants(componentsByGroup: Map<string, ComponentNode[]>): Map<string, Map<string, ComponentNode>> {
+  const variantsByGroup = new Map<string, Map<string, ComponentNode>>();
+
+  for (const [group, components] of componentsByGroup) {
+    const variants = new Map<string, ComponentNode>();
+
+    for (const component of components) {
+      variants.set(component.name.slice(group.length + 1), component);
+    }
+
+    variantsByGroup.set(group, variants);
+  }
+
+  return variantsByGroup;
+}
+
 /**
  * Fills the given page with a cover in the style of the existing DiceBear
  * Figma files and registers it as the file thumbnail.
@@ -158,6 +335,7 @@ export async function createThumbnail(page: PageNode, options: ThumbnailOptions)
   }
 
   if (style) {
+    const variantsByGroup = indexVariants(options.componentsByGroup);
     const totalTiles = (PYRAMID_ROWS * (PYRAMID_ROWS + 1)) / 2;
     const pyramid = figma.createFrame();
     const pyramidSize = (PYRAMID_ROWS - 1) * TILE_PITCH + TILE_SIZE;
@@ -193,23 +371,26 @@ export async function createThumbnail(page: PageNode, options: ThumbnailOptions)
         // without one.
         tile.fills = [figma.util.solidPaint(ACCENT)];
 
-        const avatar = renderSampleAvatar(style, TILE_SEEDS[(tileIndex - 1) % TILE_SEEDS.length], (message) => {
-          firstError ||= message;
-        });
-
-        if (avatar) {
-          tile.appendChild(avatar);
-          avatar.x = 0;
-          avatar.y = 0;
-        } else {
+        try {
+          await createSampleAvatar(
+            tile,
+            style,
+            TILE_SEEDS[(tileIndex - 1) % TILE_SEEDS.length],
+            options,
+            variantsByGroup,
+          );
+        } catch (e: any) {
           failed++;
+          firstError ||= String(e?.message ?? e);
         }
+
+        await tick();
       }
     }
 
     if (failed > 0) {
       options.warnOnce(
-        `${failed} of ${totalTiles} sample avatars could not be rendered for the thumbnail (${firstError}).`,
+        `${failed} of ${totalTiles} sample avatars could not be built for the thumbnail (${firstError}).`,
       );
     }
   }
