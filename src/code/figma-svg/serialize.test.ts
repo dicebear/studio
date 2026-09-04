@@ -1,0 +1,181 @@
+import { describe, expect, it } from 'vitest';
+import { stringify } from 'svgson';
+
+import { textNode } from './element';
+import { serializeTree } from './serialize';
+import type { SerializeOptions } from './types';
+
+const MIXED = Symbol('mixed');
+
+const IDENTITY = [
+  [1, 0, 0],
+  [0, 1, 0],
+] as const;
+
+function translate(x: number, y: number) {
+  return [
+    [1, 0, x],
+    [0, 1, y],
+  ] as const;
+}
+
+const solid = (r: number, g: number, b: number) => ({ type: 'SOLID', color: { r, g, b } });
+
+/** A shape layer with the properties the serializer reads. */
+function shape(type: string, props: Record<string, unknown>) {
+  return {
+    type,
+    name: type.toLowerCase(),
+    visible: true,
+    opacity: 1,
+    blendMode: 'PASS_THROUGH',
+    isMask: false,
+    maskType: 'ALPHA',
+    effects: [],
+    relativeTransform: IDENTITY,
+    width: 10,
+    height: 10,
+    fills: [],
+    strokes: [],
+    fillStyleId: '',
+    strokeStyleId: '',
+    strokeWeight: 1,
+    strokeAlign: 'CENTER',
+    strokeCap: 'NONE',
+    strokeJoin: 'MITER',
+    strokeMiterLimit: 4,
+    dashPattern: [],
+    cornerRadius: 0,
+    cornerSmoothing: 0,
+    arcData: { startingAngle: 0, endingAngle: Math.PI * 2, innerRadius: 0 },
+    fillGeometry: [{ windingRule: 'NONZERO', data: 'M0 0H10V10H0Z' }],
+    strokeGeometry: [],
+    vectorPaths: [],
+    ...props,
+  } as unknown as SceneNode;
+}
+
+function container(type: string, children: SceneNode[], props: Record<string, unknown> = {}) {
+  return shape(type, { children, fillGeometry: [], clipsContent: false, ...props });
+}
+
+function options(extra: Partial<SerializeOptions> = {}): SerializeOptions {
+  return {
+    host: { mixed: MIXED, getStyleById: async () => null },
+    ...extra,
+  };
+}
+
+async function svg(root: SceneNode, extra: Partial<SerializeOptions> = {}): Promise<string> {
+  return stringify(await serializeTree(root as SceneNode & ChildrenMixin, options(extra))).replace(
+    /^<svg[^>]*>|<\/svg>$/g,
+    '',
+  );
+}
+
+describe('serializeTree', () => {
+  it('writes a translated rectangle as a placed rect', async () => {
+    const root = container('FRAME', [
+      shape('RECTANGLE', { relativeTransform: translate(5, 6), fills: [solid(1, 0, 0)], width: 10, height: 4 }),
+    ]);
+
+    expect(await svg(root)).toBe('<rect width="10" height="4" fill="#ff0000" x="5" y="6"/>');
+  });
+
+  it('does not apply a group transform, its children already sit in frame coordinates', async () => {
+    const child = shape('ELLIPSE', { relativeTransform: translate(20, 20), fills: [solid(0, 0, 1)] });
+    const group = container('GROUP', [child], { relativeTransform: translate(20, 20) });
+
+    expect(await svg(container('FRAME', [group]))).toBe('<circle cx="25" cy="25" r="5" fill="#0000ff"/>');
+  });
+
+  it('keeps a frame transform and clips its children when asked', async () => {
+    const inner = container('FRAME', [shape('RECTANGLE', { fills: [solid(0, 1, 0)] })], {
+      relativeTransform: translate(3, 0),
+      clipsContent: true,
+      fillGeometry: [{ windingRule: 'NONZERO', data: 'M0 0H10V10H0Z' }],
+    });
+
+    expect(await svg(container('FRAME', [inner]), { clipFrames: true })).toBe(
+      '<g clip-path="url(#clip0)" transform="translate(3 0)"><rect width="10" height="10" fill="#00ff00"/></g>' +
+        '<defs><clipPath id="clip0"><path d="M0 0H10V10H0Z"/></clipPath></defs>',
+    );
+    expect(await svg(container('FRAME', [inner]), { clipFrames: false })).toBe(
+      '<rect width="10" height="10" fill="#00ff00" transform="translate(3 0)"/>',
+    );
+  });
+
+  it('puts a center stroke on the element and outlines an inside stroke', async () => {
+    const centered = shape('RECTANGLE', { fills: [solid(0, 0, 0)], strokes: [solid(1, 1, 1)], strokeWeight: 2 });
+    const inside = shape('RECTANGLE', {
+      fills: [solid(0, 0, 0)],
+      strokes: [solid(1, 1, 1)],
+      strokeAlign: 'INSIDE',
+      strokeGeometry: [{ windingRule: 'EVENODD', data: 'M0 0H10V10H0ZM1 1H9V9H1Z' }],
+    });
+
+    expect(await svg(container('FRAME', [centered]))).toBe(
+      '<rect width="10" height="10" fill="#000000" stroke="#ffffff" stroke-width="2"/>',
+    );
+    expect(await svg(container('FRAME', [inside]))).toBe(
+      '<rect width="10" height="10" fill="#000000"/>' +
+        '<path d="M0 0H10V10H0ZM1 1H9V9H1Z" fill="#ffffff" fill-rule="evenodd" clip-rule="evenodd"/>',
+    );
+  });
+
+  it('masks the siblings above a mask with its white outline', async () => {
+    const mask = shape('ELLIPSE', { isMask: true, maskType: 'VECTOR', fills: [solid(1, 0, 0)] });
+    const above = shape('RECTANGLE', { fills: [solid(0, 0, 1)] });
+    const below = shape('RECTANGLE', { fills: [solid(0, 1, 0)] });
+
+    expect(await svg(container('FRAME', [below, mask, above]))).toBe(
+      '<rect width="10" height="10" fill="#00ff00"/>' +
+        '<g mask="url(#mask0)"><rect width="10" height="10" fill="#0000ff"/></g>' +
+        '<defs><mask id="mask0" style="mask-type:alpha"><circle cx="5" cy="5" r="5" fill="#ffffff"/></mask></defs>',
+    );
+  });
+
+  it('places hook output, keeps its transform inside, and hands styles to the hook', async () => {
+    const instance = shape('INSTANCE', { relativeTransform: translate(1, 2), opacity: 0.5, children: [] });
+    const bound = shape('RECTANGLE', { fillStyleId: 'S:1', fills: [solid(0, 0, 0)] });
+    const warnings: string[] = [];
+
+    const result = await svg(container('FRAME', [instance, bound]), {
+      warn: (m) => warnings.push(m),
+      hooks: {
+        resolveNode: (node) =>
+          node.type === 'INSTANCE'
+            ? [
+                {
+                  name: 'g',
+                  type: 'element',
+                  value: '',
+                  attributes: { transform: 'scale(2 2)' },
+                  children: [textNode('{{components.eyes}}')],
+                },
+              ]
+            : undefined,
+        resolveStyle: (_node, channel, styleId) =>
+          styleId === 'S:1' ? [{ value: `{{colors.${channel}Group}}` }] : undefined,
+        wrapNode: (node, elements) =>
+          node.type === 'RECTANGLE'
+            ? [{ name: 'g', type: 'element', value: '', attributes: { 'data-x': '1' }, children: elements }]
+            : elements,
+      },
+    });
+
+    expect(result).toBe(
+      '<g transform="translate(1 2) scale(2 2)" opacity="0.5">{{components.eyes}}</g>' +
+        '<g data-x="1"><rect width="10" height="10" fill="{{colors.fillGroup}}"/></g>',
+    );
+    expect(warnings).toEqual([]);
+  });
+
+  it('skips transparent layers by default and warns about unknown types', async () => {
+    const warnings: string[] = [];
+    const root = container('FRAME', [shape('RECTANGLE', { opacity: 0, fills: [solid(0, 0, 0)] }), shape('SLICE', {})]);
+
+    expect(await svg(root, { warn: (m) => warnings.push(m) })).toBe('');
+    expect(warnings).toEqual(['The layer "slice" (SLICE) has no SVG equivalent and was not exported.']);
+  });
+});

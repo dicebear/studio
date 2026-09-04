@@ -21,6 +21,7 @@ export function getFrameSettings(frame: FrameNode, colorGroups: string[]): Frame
     onPreCreateHook: '',
     onPostCreateHook: '',
     precision: 3,
+    fileShareUrl: '',
     ...JSON.parse(frame.getPluginData(`settings`) || '{}'),
   };
 

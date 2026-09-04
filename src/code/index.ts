@@ -11,6 +11,7 @@ import { createExport } from './export/createExport';
 import { setColorGroupSettings } from './settings/setColorGroupSettings';
 import { prepareNormalize } from './normalize/prepareNormalize';
 import { applyNormalize } from './normalize/applyNormalize';
+import { acknowledgeProgress } from './utils/postProgress';
 
 figma.showUI(__html__, { width: 720, height: 400 });
 
@@ -143,6 +144,11 @@ figma.ui.onmessage = async (msg) => {
 
         await postNormalize(msg.data.groupName, precision);
       }
+      break;
+
+    case 'progress':
+      // The window has painted the last progress update.
+      acknowledgeProgress();
       break;
 
     case 'reveal':

@@ -17,8 +17,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   approximated or skipped with a warning. Both directions need Figma's motion API.
 - Round-trip `currentColor`, reference colors, and opacity of component references.
 
+- Show the export progress. The loading screen names the component that is being exported and counts the steps on a
+  progress bar, and the export gives the window a turn between components so it stays responsive.
+
 ### Changed
 
+- Write the SVG from the layer data instead of running Figma's SVG export on a copy of the frame. Geometry comes from
+  `fillGeometry` and `strokeGeometry`, paints, effects, masks, blend modes and keyframe tracks are read from the layers.
+  The export no longer clones the frame, swaps instances or flattens boolean layers, and nothing that Figma's export
+  baked in (mask bounds, style opacities, filter ids) has to be undone. Two things read differently: the children of a
+  frame with a palette fill keep their own colors instead of inheriting the palette, and nested groups keep their
+  structure with transforms that svgo folds into the paths. Frames still do not clip, the avatar clips at the canvas.
+  Angular and diamond gradients, background blur and image fills have no SVG counterpart and are reported as warnings.
 - Reference `@dicebear/schema@2.0.1` in definition files exported for 11.x. Files for 10.x keep `1.5.1`.
 - Keep definitions stable across an import and the following export: circles that Figma turned into paths are rebuilt,
   the precision comes from the imported file, and the export ends with a newline.

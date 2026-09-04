@@ -7,6 +7,8 @@ import { getLicenseAsText } from '../utils/getLicenseAsText';
 import { parse } from 'svgson';
 import { convertSvgsonToDefinition } from '../utils/convertSvgsonToDefinition';
 import { definitionSchemaVersion } from '../utils/useDefinitionFile';
+import { postProgress } from '../utils/postProgress';
+import { createExportSerializer } from './createExportSerializer';
 
 const byCodepoint = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 const byEntryKey = ([a]: [string, unknown], [b]: [string, unknown]): number => byCodepoint(a, b);
@@ -21,6 +23,14 @@ export async function createExportDefinition(exportData: Export, warn: (message:
   const size = roundTo(((await figma.getNodeByIdAsync(exportData.frame.id)) as FrameNode).width, precision);
   const components: DefinitionComponents = {};
   const colors: DefinitionColors = {};
+  const serialize = createExportSerializer(exportData, warn);
+
+  // Every variant is one step, the avatar frame the last one.
+  const total =
+    Object.values(exportData.components)
+      .filter((group) => !group.extendsGroup)
+      .reduce((sum, group) => sum + Object.keys(group.collection).length, 0) + 1;
+  let done = 0;
 
   // Collect components
   for (const [componentGroupKey, componentGroupValue] of Object.entries(exportData.components).sort(byEntryKey)) {
@@ -54,8 +64,16 @@ export async function createExportDefinition(exportData: Export, warn: (message:
     components[componentGroupKey] = baseEntry;
 
     for (const [componentKey, componentValue] of Object.entries(componentGroupValue.collection).sort(byEntryKey)) {
+      // Posted before the work, so the window shows the step that is running.
+      // The turn of the event loop in between also keeps the window
+      // responsive: the svgo pass per component runs synchronously.
+      await postProgress(`Exporting ${componentGroupKey} / ${componentKey} (${done + 1} of ${total})`, done / total);
+
       const componentNode = (await figma.getNodeByIdAsync(componentValue.id)) as ComponentNode;
-      const componentContent = await createTemplateString(exportData, componentNode, warn);
+      const componentContent = await createTemplateString(exportData, componentNode, serialize);
+
+      done++;
+
       const componentContentWithSvg = `<svg>${componentContent}</svg>`;
 
       baseEntry.width = roundTo(Math.max(baseEntry.width, componentNode.width), precision);
@@ -113,10 +131,12 @@ export async function createExportDefinition(exportData: Export, warn: (message:
   }
 
   // Create definition
+  await postProgress(`Exporting the avatar frame (${total} of ${total})`, done / total);
+
   const bodyContent = await createTemplateString(
     exportData,
     (await figma.getNodeByIdAsync(exportData.frame.id)) as FrameNode,
-    warn,
+    serialize,
   );
   const bodyContentWithSvg = `<svg>${bodyContent}</svg>`;
 

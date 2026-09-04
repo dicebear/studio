@@ -4,9 +4,12 @@ import { Export } from '../types';
 import { createExportJsonSchema } from './createExportJsonSchema';
 import handlebars from '../utils/handlebars';
 import { isRangeEmpty } from '../utils/rangeValue';
+import { postProgress } from '../utils/postProgress';
+import { createExportSerializer } from './createExportSerializer';
 
 export async function createExportFiles(exportData: Export) {
   const schema = createExportJsonSchema(exportData);
+  const serialize = createExportSerializer(exportData);
   const isMitLicensed = exportData.frame.settings.licenseName && exportData.frame.settings.licenseName === 'MIT';
 
   const hasPreCreateHook = !!exportData.frame.settings.onPreCreateHook.trim();
@@ -74,7 +77,11 @@ export async function createExportFiles(exportData: Export) {
       components: exportData.components,
       colors: exportData.colors,
       size: ((await figma.getNodeByIdAsync(exportData.frame.id)) as FrameNode).width,
-      body: await createTemplateString(exportData, (await figma.getNodeByIdAsync(exportData.frame.id)) as FrameNode),
+      body: await createTemplateString(
+        exportData,
+        (await figma.getNodeByIdAsync(exportData.frame.id)) as FrameNode,
+        serialize,
+      ),
       shapeRendering: exportData.frame.settings.shapeRendering,
       hasPreCreateHook,
       hasPostCreateHook,
@@ -147,7 +154,11 @@ export async function createExportFiles(exportData: Export) {
         componentGroup.collection[componentName].id,
       )) as ComponentNode;
 
-      components[componentName] = await createTemplateString(exportData, componentNode);
+      // See createExportDefinition: the window shows the running step, and the
+      // turn of the event loop keeps it responsive between the svgo passes.
+      await postProgress(`Exporting ${componentGroupName} / ${componentName}`);
+
+      components[componentName] = await createTemplateString(exportData, componentNode, serialize);
     }
 
     files[`src/components/${componentGroupName}.ts`] = componentTemplate({

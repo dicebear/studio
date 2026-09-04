@@ -20,6 +20,14 @@ async function handleMessage(event: MessageEvent) {
     case 'loading':
       store.type = 'loading';
       store.message = message.data?.message ?? '';
+      store.progress = typeof message.data?.progress === 'number' ? message.data.progress : null;
+
+      // The plugin waits for this before its next step, so every step gets
+      // on screen. The frame callback runs right before the paint that shows
+      // the update, and the message reaches the plugin after it.
+      if (store.progress !== null) {
+        requestAnimationFrame(() => postPluginMessage('progress'));
+      }
       break;
 
     case 'loaded':

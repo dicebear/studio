@@ -46,6 +46,8 @@ const usePluginStore = defineStore('plugin', () => {
   const normalizeErrors = ref<Record<string, string>>({});
   const componentTab = ref<ComponentTab>('settings');
   const message = ref<string>('');
+  /** How far the running task is, 0 to 1, or null while it cannot say. */
+  const progress = ref<number | null>(null);
   const importWarnings = ref<string[]>([]);
   const exportWarnings = ref<string[]>([]);
   const activeStageKind = ref<StageKind>('general');
@@ -94,6 +96,7 @@ const usePluginStore = defineStore('plugin', () => {
     normalizeErrors,
     componentTab,
     message,
+    progress,
     importWarnings,
     exportWarnings,
     activeStageKind,

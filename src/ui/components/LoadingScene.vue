@@ -6,7 +6,14 @@ const store = usePluginStore();
 
 <template>
   <div class="loader">
-    <ProgressSpinner class="spinner" style="width: 32px; height: 32px" stroke-width="4" />
+    <ProgressBar
+      v-if="store.progress !== null"
+      class="bar"
+      :value="Math.round(store.progress * 100)"
+      :show-value="false"
+      :pt="{ value: { style: { transition: 'none' } } }"
+    />
+    <ProgressSpinner v-else class="spinner" style="width: 32px; height: 32px" stroke-width="4" />
     <p class="title">Processing</p>
     <p class="hint">
       {{
@@ -30,8 +37,16 @@ const store = usePluginStore();
   color: var(--figma-color-text);
 }
 
-.spinner {
+.spinner,
+.bar {
   margin-bottom: 24px;
+}
+
+/* Steps arrive faster than the stock one-second width transition, which would
+   leave the bar lagging far behind the count, hence the override above. */
+.bar {
+  width: 240px;
+  height: 6px;
 }
 
 .title {

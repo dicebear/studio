@@ -2,27 +2,19 @@
 import { optimize } from 'svgo/browser';
 import { Export } from '../types';
 import { normalizeName } from '../utils/normalizeName';
-import { applyNodeExportInfo } from './applyNodeExportInfo';
-import { calculateNodeExportInfo } from './calculateNodeExportInfo';
-import { useAnimations, useDefinitionFile } from '../utils/useDefinitionFile';
+import { useDefinitionFile } from '../utils/useDefinitionFile';
 import { PluginConfig } from 'svgo';
 import { cleanupNumericValues } from './cleanupNumericValues';
 import { convertPathToShape } from './convertPathToShape';
 import { normalizeArcFlags } from './normalizeArcFlags';
+import type { NodeSerializer } from '../serializer/serializeNode';
 
 export async function createTemplateString(
   exportData: Export,
   node: FrameNode | ComponentNode,
-  warn: (message: string) => void = () => {},
+  serialize: NodeSerializer,
 ) {
-  const aliasesEnabled = useDefinitionFile(exportData.frame.settings.dicebearVersion);
-  const animationsEnabled = useAnimations(exportData.frame.settings.dicebearVersion);
-
-  // Calculate the export info for the node and export to svg
-  let result = await calculateNodeExportInfo(node, aliasesEnabled, animationsEnabled, warn);
-
-  // Apply export info to svg
-  result = await applyNodeExportInfo(result);
+  let result = await serialize(node);
 
   // Optimize the svg
   const plugins: PluginConfig[] = [

@@ -15,6 +15,7 @@ import { decomposeOriginAnimations } from '../animation/decomposeOrigin';
 import { animationLayerName } from '../animation/names';
 import { CURRENT_COLOR_GROUP } from '../utils/currentColor';
 import { tick } from '../utils/tick';
+import { postProgress } from '../utils/postProgress';
 import {
   createDefinitionSerializer,
   DefinitionSerializer,
@@ -60,11 +61,6 @@ type ImportContext = {
   warn: (message: string) => void;
   warnOnce: (message: string) => void;
 };
-
-async function postProgress(message: string): Promise<void> {
-  figma.ui.postMessage({ type: 'loading', data: { message } });
-  await tick();
-}
 
 function validateDefinition(definition: DefinitionFile): void {
   const canvas = definition?.canvas;
