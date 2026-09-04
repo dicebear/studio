@@ -24,9 +24,12 @@ async function handleMessage(event: MessageEvent) {
 
       // The plugin waits for this before its next step, so every step gets
       // on screen. The frame callback runs right before the paint that shows
-      // the update, and the message reaches the plugin after it.
+      // the update, and the message reaches the plugin after it. The step
+      // number tells the plugin which update was painted.
       if (store.progress !== null) {
-        requestAnimationFrame(() => postPluginMessage('progress'));
+        const step = message.data?.step;
+
+        requestAnimationFrame(() => postPluginMessage('progress', { step }));
       }
       break;
 

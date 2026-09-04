@@ -61,7 +61,7 @@ function container(type: string, children: SceneNode[], props: Record<string, un
 
 function options(extra: Partial<SerializeOptions> = {}): SerializeOptions {
   return {
-    host: { mixed: MIXED, getStyleById: async () => null },
+    host: { mixed: MIXED },
     ...extra,
   };
 }
@@ -132,6 +132,63 @@ describe('serializeTree', () => {
       '<rect width="10" height="10" fill="#00ff00"/>' +
         '<g mask="url(#mask0)"><rect width="10" height="10" fill="#0000ff"/></g>' +
         '<defs><mask id="mask0" style="mask-type:alpha"><circle cx="5" cy="5" r="5" fill="#ffffff"/></mask></defs>',
+    );
+  });
+
+  it('keeps a child opacity under a group opacity instead of replacing it', async () => {
+    const child = shape('RECTANGLE', { opacity: 0.8, fills: [solid(0, 0, 0)] });
+
+    expect(await svg(container('FRAME', [container('GROUP', [child], { opacity: 0.5 })]))).toBe(
+      '<g opacity="0.5"><rect width="10" height="10" fill="#000000" opacity="0.8"/></g>',
+    );
+  });
+
+  it('moves an outlined stroke on a primitive by a transform, not by position attributes', async () => {
+    const ring = shape('ELLIPSE', {
+      relativeTransform: translate(40, 60),
+      strokes: [solid(0, 0, 0)],
+      strokeAlign: 'INSIDE',
+      strokeGeometry: [
+        { windingRule: 'EVENODD', data: 'M0 5A5 5 0 1 0 10 5A5 5 0 1 0 0 5ZM1 5A4 4 0 1 0 9 5A4 4 0 1 0 1 5Z' },
+      ],
+    });
+
+    expect(await svg(container('FRAME', [ring]))).toBe(
+      '<path d="M0 5A5 5 0 1 0 10 5A5 5 0 1 0 0 5ZM1 5A4 4 0 1 0 9 5A4 4 0 1 0 1 5Z" fill="#000000" fill-rule="evenodd" clip-rule="evenodd" transform="translate(40 60)"/>',
+    );
+  });
+
+  it('outlines the children of a vector group mask and warns about an empty mask', async () => {
+    const warnings: string[] = [];
+    const inner = shape('RECTANGLE', { fills: [solid(1, 0, 0)] });
+    const groupMask = container('GROUP', [inner], { isMask: true, maskType: 'VECTOR', name: 'group mask' });
+    const above = shape('RECTANGLE', { fills: [solid(0, 0, 1)] });
+
+    expect(await svg(container('FRAME', [groupMask, above]))).toBe(
+      '<g mask="url(#mask0)"><rect width="10" height="10" fill="#0000ff"/></g>' +
+        '<defs><mask id="mask0" style="mask-type:alpha"><rect width="10" height="10" fill="#ffffff"/></mask></defs>',
+    );
+
+    const emptyMask = shape('RECTANGLE', { isMask: true, maskType: 'ALPHA', name: 'empty' });
+
+    expect(await svg(container('FRAME', [emptyMask, above]), { warn: (m) => warnings.push(m) })).toBe('');
+    expect(warnings).toEqual(['The mask "empty" has no content, so the layers it masks were not exported.']);
+  });
+
+  it('writes a shape filter in layer coordinates and places the filtered group', async () => {
+    const line = shape('LINE', {
+      relativeTransform: translate(3, 4),
+      height: 0,
+      width: 10,
+      strokes: [solid(0, 0, 0)],
+      strokeWeight: 2,
+      effects: [{ type: 'LAYER_BLUR', radius: 2, visible: true }],
+    });
+    const out = await svg(container('FRAME', [line]));
+
+    expect(out).toContain('<g filter="url(#filter0)" transform="translate(3 4)">');
+    expect(out).toContain(
+      '<filter id="filter0" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" x="-4" y="-4" width="18" height="8">',
     );
   });
 

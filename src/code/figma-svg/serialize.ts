@@ -2,7 +2,7 @@ import { stringify, type INode } from 'svgson';
 
 import { blendModeStyle } from './blend';
 import { element } from './element';
-import { effectsToFilter } from './effects';
+import { effectsToFilter, type FilterBox } from './effects';
 import { planMaskedSiblings, type MaskPlanItem } from './masks';
 import { IDENTITY, fromTransform, isIdentity, isTranslation, toAttribute, type Matrix } from './matrix';
 import { formatNumber } from './numbers';
@@ -44,6 +44,14 @@ async function breathe(ctx: Context): Promise<void> {
 }
 
 type Size = { width: number; height: number };
+
+/**
+ * How a layer is being rendered: as ordinary content, as the content of an
+ * alpha or luminance mask (as it paints), or as the content of a vector mask
+ * (its white outline). Decided once at the mask and passed down, since the
+ * children of a group mask carry no mask type of their own.
+ */
+type MaskMode = false | 'paint' | 'outline';
 
 const SHAPE_TYPES = new Set<string>([
   'RECTANGLE',
@@ -242,18 +250,25 @@ async function shapeElements(
   const size: Size = { width: node.width, height: node.height };
   const fills = outlineOnly ? [{ value: '#ffffff' }] : await channelPaints(ctx, node, 'fill', size);
   const strokes = outlineOnly || node.strokeWeight === 0 ? [] : await channelPaints(ctx, node, 'stroke', size);
-  // Both geometries are computed on read, so each is taken once.
-  const fillGeometry = node.fillGeometry;
+
+  // Most containers carry no paint at all, and a primitive never needs its
+  // outline, so the geometry is computed on read only where a path comes out.
+  if (fills.length === 0 && strokes.length === 0) {
+    return [];
+  }
+
+  let fillGeometry: VectorPaths | undefined;
+  const outline = (): VectorPaths => (fillGeometry ??= node.fillGeometry);
   const elements: INode[] = [];
 
   /** One primitive, or one path per subpath of the geometry. */
-  const draw = (attributes: Record<string, string>, paths: VectorPaths): INode[] =>
+  const draw = (attributes: Record<string, string>, paths: () => VectorPaths): INode[] =>
     primitive !== null
       ? [element(primitive.name, { ...primitive.attributes, ...attributes })]
-      : paths.map((path) => pathElement(path, attributes));
+      : paths().map((path) => pathElement(path, attributes));
 
   for (const fill of fills) {
-    elements.push(...draw(paintAttributes('fill', fill), fillGeometry));
+    elements.push(...draw(paintAttributes('fill', fill), outline));
   }
 
   if (strokes.length === 0) {
@@ -262,21 +277,21 @@ async function shapeElements(
 
   if (strokeAsAttributes(ctx, node, strokes)) {
     const attributes = strokeAttributes(node, strokes[0]);
-    const line = centerline(node, fillGeometry);
+    const line = primitive !== null ? [] : centerline(node, outline());
 
     // A single filled element that follows the same outline takes the stroke
     // itself. A vector's fill geometry can differ from its centerline (an
     // open path fills nothing), so those get a stroke element of their own.
     if (
       elements.length === 1 &&
-      (primitive !== null || (node.type !== 'VECTOR' && fillGeometry.length === 1 && line.length === 1))
+      (primitive !== null || (node.type !== 'VECTOR' && outline().length === 1 && line.length === 1))
     ) {
       Object.assign(elements[0].attributes, attributes);
 
       return elements;
     }
 
-    elements.push(...draw({ fill: 'none', ...attributes }, line));
+    elements.push(...draw({ fill: 'none', ...attributes }, () => line));
 
     return elements;
   }
@@ -312,10 +327,19 @@ function placeElements(
 
   const transform = toAttribute(matrix);
 
-  if (elements.length === 1 && elements[0].type === 'element') {
+  // A single element takes the layer's attributes itself, unless it already
+  // carries one of them. A child's opacity or blend mode composes with the
+  // layer's, so that case gets a group.
+  if (
+    elements.length === 1 &&
+    elements[0].type === 'element' &&
+    !Object.keys(attributes).some((key) => key in elements[0].attributes)
+  ) {
     const [only] = elements;
 
-    if (primitive && isTranslation(matrix)) {
+    // Outlined strokes leave a primitive layer as paths, which have no
+    // position attributes to move.
+    if (primitive && only.name !== 'path' && isTranslation(matrix)) {
       if (!isIdentity(matrix)) {
         placePrimitive(only, matrix);
       }
@@ -366,18 +390,45 @@ function blendAttributes(ctx: Context, node: SceneNode, asMask: boolean): Record
   return attributes;
 }
 
-/** Wraps the layer's elements in the filter for its effects, when it has any. */
+/** How far a shape's stroke reaches beyond its box. */
+function strokeOutset(ctx: Context, node: SceneNode & GeometryMixin): number {
+  const strokes = node.strokes;
+
+  if (strokes === ctx.host.mixed || !strokes.some((stroke) => stroke.visible !== false)) {
+    return 0;
+  }
+
+  const weight =
+    node.strokeWeight !== ctx.host.mixed
+      ? (node.strokeWeight as number)
+      : 'strokeTopWeight' in node
+        ? Math.max(node.strokeTopWeight, node.strokeRightWeight, node.strokeBottomWeight, node.strokeLeftWeight)
+        : 0;
+
+  if (node.strokeAlign === 'INSIDE') {
+    return 0;
+  }
+
+  return node.strokeAlign === 'CENTER' ? weight / 2 : weight;
+}
+
+/**
+ * Wraps the layer's elements in the filter for its effects, when it has any.
+ * The elements are in the layer's own coordinates, so a shape's region can be
+ * written in them, see {@link FilterBox}.
+ */
 function applyEffects(ctx: Context, node: SceneNode, elements: INode[], asMask: boolean): INode[] {
   if (asMask || elements.length === 0 || !('effects' in node) || node.effects.length === 0) {
     return elements;
   }
 
-  const filter = effectsToFilter(
-    node.effects,
-    { width: node.width, height: node.height },
-    ctx.nextId('filter'),
-    ctx.warn,
-  );
+  const box: FilterBox = { width: node.width, height: node.height };
+
+  if (SHAPE_TYPES.has(node.type)) {
+    box.outset = strokeOutset(ctx, node as SceneNode & GeometryMixin);
+  }
+
+  const filter = effectsToFilter(node.effects, box, ctx.nextId('filter'), ctx.warn);
 
   if (filter === null) {
     return elements;
@@ -393,11 +444,12 @@ function applyEffects(ctx: Context, node: SceneNode, elements: INode[], asMask: 
  * children in layer order with masks applied. A frame that clips its content
  * gets a clip path from its outline, when the export clips frames at all.
  */
-async function containerElements(ctx: Context, node: SceneNode & ChildrenMixin, asMask: boolean): Promise<INode[]> {
+async function containerElements(ctx: Context, node: SceneNode & ChildrenMixin, mode: MaskMode): Promise<INode[]> {
   // A container's own fill and stroke, never in primitive form: its box is
   // the layout, and its children follow in the same coordinates.
-  const own = 'fillGeometry' in node ? await shapeElements(ctx, node as SceneNode & GeometryMixin, asMask, null) : [];
-  const children = await serializeChildren(ctx, node.children, asMask);
+  const own =
+    'fillGeometry' in node ? await shapeElements(ctx, node as SceneNode & GeometryMixin, mode === 'outline', null) : [];
+  const children = await serializeChildren(ctx, node.children, mode);
 
   if (ctx.clipFrames && 'clipsContent' in node && node.clipsContent && children.length > 0) {
     const id = ctx.nextId('clip');
@@ -415,34 +467,39 @@ async function containerElements(ctx: Context, node: SceneNode & ChildrenMixin, 
   return [...own, ...children];
 }
 
-async function serializeChildren(ctx: Context, children: readonly SceneNode[], asMask: boolean): Promise<INode[]> {
+async function serializeChildren(ctx: Context, children: readonly SceneNode[], mode: MaskMode): Promise<INode[]> {
   const plan = planMaskedSiblings(
     children.filter((child) => child.visible),
     (child) => 'isMask' in child && child.isMask,
   );
 
-  return serializePlan(ctx, plan, asMask);
+  return serializePlan(ctx, plan, mode);
 }
 
-async function serializePlan(ctx: Context, plan: MaskPlanItem<SceneNode>[], asMask: boolean): Promise<INode[]> {
+async function serializePlan(ctx: Context, plan: MaskPlanItem<SceneNode>[], mode: MaskMode): Promise<INode[]> {
   const result: INode[] = [];
 
   for (const item of plan) {
     if (item.kind === 'node') {
-      result.push(...(await serializeNode(ctx, item.node, asMask)));
+      result.push(...(await serializeNode(ctx, item.node, mode)));
 
       continue;
     }
 
-    const masked = await serializePlan(ctx, item.children, asMask);
+    const masked = await serializePlan(ctx, item.children, mode);
 
     if (masked.length === 0) {
       continue;
     }
 
-    const content = await serializeNode(ctx, item.mask, true);
+    const maskType = 'maskType' in item.mask ? item.mask.maskType : 'ALPHA';
+    const content = await serializeNode(ctx, item.mask, maskType === 'VECTOR' ? 'outline' : 'paint');
 
+    // An empty mask hides everything it masks. That is what Figma shows, but
+    // rarely what the designer meant, so it is reported.
     if (content.length === 0) {
+      ctx.warn(`The mask "${item.mask.name}" has no content, so the layers it masks were not exported.`);
+
       continue;
     }
 
@@ -451,7 +508,7 @@ async function serializePlan(ctx: Context, plan: MaskPlanItem<SceneNode>[], asMa
 
     // A vector mask uses its outline, an alpha mask its transparency. Both are
     // alpha masks to SVG, a luminance mask is the SVG default.
-    if (!('maskType' in item.mask) || item.mask.maskType !== 'LUMINANCE') {
+    if (maskType !== 'LUMINANCE') {
       attributes.style = 'mask-type:alpha';
     }
 
@@ -463,12 +520,14 @@ async function serializePlan(ctx: Context, plan: MaskPlanItem<SceneNode>[], asMa
 }
 
 /**
- * The elements of one layer in its parent's coordinates. `asMask` renders a
- * layer as mask content: a vector mask as its white outline, an alpha or
+ * The elements of one layer in its parent's coordinates. A mask mode renders
+ * the layer as mask content: a vector mask as its white outline, an alpha or
  * luminance mask as it paints, both without opacity, blend mode and effects.
  */
-async function serializeNode(ctx: Context, node: SceneNode, asMask: boolean): Promise<INode[]> {
+async function serializeNode(ctx: Context, node: SceneNode, mode: MaskMode): Promise<INode[]> {
   await breathe(ctx);
+
+  const asMask = mode !== false;
 
   // Figma's export leaves a layer at zero opacity out, and so does this one.
   if (!asMask && 'opacity' in node && node.opacity === 0) {
@@ -486,9 +545,10 @@ async function serializeNode(ctx: Context, node: SceneNode, asMask: boolean): Pr
   if (raw !== undefined) {
     // The hook owns the layer.
   } else if (CONTAINER_TYPES.has(node.type)) {
-    raw = await containerElements(ctx, node as SceneNode & ChildrenMixin, asMask);
+    raw = await containerElements(ctx, node as SceneNode & ChildrenMixin, mode);
   } else if (SHAPE_TYPES.has(node.type)) {
-    const outlineOnly = asMask && node.type !== 'TEXT' && 'maskType' in node && node.maskType === 'VECTOR';
+    // A text keeps its glyphs even in a vector mask.
+    const outlineOnly = mode === 'outline' && node.type !== 'TEXT';
 
     primitive = primitiveOf(ctx, node);
     raw = await shapeElements(ctx, node as SceneNode & GeometryMixin, outlineOnly, primitive);
@@ -498,9 +558,13 @@ async function serializeNode(ctx: Context, node: SceneNode, asMask: boolean): Pr
     return [];
   }
 
-  const filtered = applyEffects(ctx, node, placeElements(raw, matrix, attributes, primitive !== null), asMask);
+  // The filter wraps the elements before they are placed, so its region is in
+  // the layer's coordinates and the layer's opacity applies to the shadows
+  // too. A filtered primitive is a group by then and takes a transform.
+  const filtered = applyEffects(ctx, node, raw, asMask);
+  const placed = placeElements(filtered, matrix, attributes, primitive !== null && filtered === raw);
 
-  return ctx.hooks.wrapNode ? ctx.hooks.wrapNode(node, filtered, asMask, ctx) : filtered;
+  return ctx.hooks.wrapNode ? ctx.hooks.wrapNode(node, placed, asMask, ctx) : placed;
 }
 
 function createContext(options: SerializeOptions): Context {

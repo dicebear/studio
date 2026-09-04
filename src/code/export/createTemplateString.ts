@@ -14,7 +14,14 @@ export async function createTemplateString(
   node: FrameNode | ComponentNode,
   serialize: NodeSerializer,
 ) {
-  let result = await serialize(node);
+  let result: string;
+
+  try {
+    result = await serialize(node);
+  } catch (e) {
+    // The name tells the user which of a few hundred variants failed.
+    throw new Error(`Error while exporting ${node.name}: ${e instanceof Error ? e.message : String(e)}`);
+  }
 
   // Optimize the svg
   const plugins: PluginConfig[] = [

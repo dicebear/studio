@@ -98,7 +98,7 @@ export type NormalizeData = {
 };
 
 export type PluginMessage =
-  | { type: 'loading'; data?: { message?: string; progress?: number } }
+  | { type: 'loading'; data?: { message?: string; progress?: number; step?: number } }
   | { type: 'loaded'; data: ExportData }
   | { type: 'normalize'; data: NormalizeData }
   | { type: 'normalize:error'; data: { groupName: string; message: string } }

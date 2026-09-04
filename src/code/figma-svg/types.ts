@@ -8,8 +8,6 @@ import type { INode } from 'svgson';
 export type SerializerHost = {
   /** The sentinel Figma returns for properties that differ within a node. */
   mixed: unknown;
-  /** Resolves a style id, `figma.getStyleByIdAsync` in a plugin. */
-  getStyleById(id: string): Promise<BaseStyle | null>;
   /**
    * Gives the event loop a turn. Defaults to a zero timeout. The walk reads
    * layers synchronously, so without a break a large frame would hold the

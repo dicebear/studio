@@ -147,8 +147,8 @@ figma.ui.onmessage = async (msg) => {
       break;
 
     case 'progress':
-      // The window has painted the last progress update.
-      acknowledgeProgress();
+      // The window has painted a progress update.
+      acknowledgeProgress(msg.data?.step);
       break;
 
     case 'reveal':

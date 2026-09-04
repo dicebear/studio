@@ -2,6 +2,8 @@ import { serializeToSvg } from '../figma-svg';
 import { tick } from '../utils/tick';
 import { createDicebearHooks } from './hooks';
 import { createStyleCache } from './referenceColor';
+import { hasAnimationTracks } from './nodeAnimation';
+import { isMotionAvailable } from '../utils/motionSupport';
 
 export type SerializeOptions = {
   aliasesEnabled: boolean;
@@ -35,15 +37,23 @@ export function createSerializer(options: SerializeOptions): NodeSerializer {
     styles,
   });
 
-  return (root) =>
-    serializeToSvg(root, {
+  return (root) => {
+    // The root is exported by its contents, and the definition has no place
+    // for an animation on the avatar or a component itself.
+    if (options.animationsEnabled && isMotionAvailable(root) && hasAnimationTracks(root)) {
+      options.warn(
+        `The animation on "${root.name}" itself was not exported. Only the layers inside a component or the avatar frame can carry one.`,
+      );
+    }
+
+    return serializeToSvg(root, {
       host: {
         mixed: figma.mixed,
-        getStyleById: styles,
         yield: tick,
       },
       hooks,
       warn: options.warn,
       clipFrames: false,
     });
+  };
 }

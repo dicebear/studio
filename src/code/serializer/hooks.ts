@@ -28,7 +28,7 @@ import {
 export type DicebearHookOptions = {
   aliasesEnabled: boolean;
   animationsEnabled: boolean;
-  /** The same style lookup the serializer host uses, so ids resolve once. */
+  /** Resolves style ids, cached so each one crosses the plugin bridge once. */
   styles: StyleLookup;
 };
 

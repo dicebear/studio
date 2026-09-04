@@ -1,4 +1,3 @@
-import rgbHex from 'rgb-hex';
 import { ComponentGroupSettings, DefinitionComponentBase, DefinitionComponents, DefinitionFile } from '../types';
 import { setColorGroupSettings } from '../settings/setColorGroupSettings';
 import { setComponentGroupSettings } from '../settings/setComponentGroupSettings';
@@ -16,6 +15,7 @@ import { animationLayerName } from '../animation/names';
 import { CURRENT_COLOR_GROUP } from '../utils/currentColor';
 import { tick } from '../utils/tick';
 import { postProgress } from '../utils/postProgress';
+import { hexColor } from '../figma-svg';
 import {
   createDefinitionSerializer,
   DefinitionSerializer,
@@ -143,15 +143,7 @@ function createPaintStyles(definition: DefinitionFile, warn: (message: string) =
 }
 
 function solidPaintHex(paint: Paint): string | null {
-  if (paint.type !== 'SOLID') {
-    return null;
-  }
-
-  return `#${rgbHex(
-    Math.round(paint.color.r * 255),
-    Math.round(paint.color.g * 255),
-    Math.round(paint.color.b * 255),
-  )}`;
+  return paint.type === 'SOLID' ? hexColor(paint.color) : null;
 }
 
 /**

@@ -25,6 +25,41 @@ describe('effectsToFilter', () => {
 
     expect(blur.attributes.stdDeviation).toBe('4');
     expect(filter.attributes).toMatchObject({ id: 'f', x: '-0.12', y: '-0.24', width: '1.24', height: '1.48' });
+    expect(filter.attributes.filterUnits).toBeUndefined();
+  });
+
+  it('writes a shape region in layer coordinates, with the stroke and a floor for a line', () => {
+    const filter = effectsToFilter(
+      [
+        {
+          type: 'DROP_SHADOW',
+          color: { r: 0, g: 0, b: 0, a: 1 },
+          offset: { x: 4, y: 0 },
+          radius: 0,
+          visible: true,
+        },
+      ],
+      { width: 100, height: 0, outset: 3 },
+      'f',
+      () => {},
+    )!;
+
+    expect(filter.attributes).toMatchObject({
+      filterUnits: 'userSpaceOnUse',
+      x: '-7',
+      y: '-3',
+      width: '114',
+      height: '6',
+    });
+
+    const bare = effectsToFilter(
+      [{ type: 'LAYER_BLUR', radius: 0, visible: true }],
+      { width: 100, height: 0, outset: 0 },
+      'f',
+      () => {},
+    )!;
+
+    expect(bare.attributes.height).toBe('1');
   });
 
   it('chains a drop shadow below the graphic', () => {

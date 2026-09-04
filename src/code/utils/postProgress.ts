@@ -7,11 +7,22 @@ const PAINT_TIMEOUT_MS = 150;
 const PAINT_INTERVAL_MS = 100;
 
 let pendingPaint: (() => void) | null = null;
+let pendingStep = 0;
+let lastStep = 0;
 let lastPaint = 0;
 let windowAnswers = true;
 
-/** Called when the window has painted the last progress update. */
-export function acknowledgeProgress(): void {
+/**
+ * Called when the window has painted a progress update. The window reports
+ * every update, also the ones no step waited for, so a report only counts for
+ * the step that is waiting for it: a late one for an earlier step would
+ * otherwise release the current step before its own paint.
+ */
+export function acknowledgeProgress(step: number | undefined): void {
+  if (step !== pendingStep) {
+    return;
+  }
+
   const resolve = pendingPaint;
 
   pendingPaint = null;
@@ -19,9 +30,13 @@ export function acknowledgeProgress(): void {
   resolve?.();
 }
 
-/** Forgets what the last task learned about the window. */
+/**
+ * Forgets what the last task learned about the window. A step still waiting
+ * is released first: its timeout would otherwise fire into the new task and
+ * mark the window as silent.
+ */
 export function resetProgress(): void {
-  pendingPaint = null;
+  acknowledgeProgress(pendingStep);
   lastPaint = 0;
   windowAnswers = true;
 }
@@ -40,7 +55,9 @@ export function resetProgress(): void {
  * the rest of the task rather than paid on every step.
  */
 export async function postProgress(message: string, progress?: number): Promise<void> {
-  figma.ui.postMessage({ type: 'loading', data: { message, progress } });
+  const step = ++lastStep;
+
+  figma.ui.postMessage({ type: 'loading', data: { message, progress, step } });
 
   if (progress === undefined || !windowAnswers || Date.now() - lastPaint < PAINT_INTERVAL_MS) {
     await tick();
@@ -50,10 +67,12 @@ export async function postProgress(message: string, progress?: number): Promise<
 
   await new Promise<void>((resolve) => {
     const timeout = setTimeout(() => {
+      pendingPaint = null;
       windowAnswers = false;
       resolve();
     }, PAINT_TIMEOUT_MS);
 
+    pendingStep = step;
     pendingPaint = () => {
       clearTimeout(timeout);
       resolve();
