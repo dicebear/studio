@@ -44,6 +44,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   instead of half a stroke lower and a cap longer.
 - A fill or stroke with a blend mode of its own keeps it as `mix-blend-mode` on its element. The export dropped it and
   only carried the layer's blend mode.
+- The `$comment` of an exported definition says exported instead of generated, the file may be edited by hand.
 - Reference `@dicebear/schema@2.0.1` in definition files exported for 11.x. Files for 10.x keep `1.5.1`.
 - Keep definitions stable across an import and the following export: circles that Figma turned into paths are rebuilt,
   the precision comes from the imported file, and the export ends with a newline.
