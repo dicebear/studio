@@ -52,8 +52,13 @@ export function createDicebearHooks(options: DicebearHookOptions): SerializeHook
      * a component that paints with `currentColor`, the color the reference
      * passes down. The serializer adds the instance's own transform and
      * opacity, the definition converter folds all of it onto the reference.
+     *
+     * The same placeholder stands inside a mask. The renderer draws the
+     * variant the seed picks there, and its alpha masks the siblings, as the
+     * instance does in Figma. A vector mask cannot take the outline of a part
+     * that is only chosen at render time, so it uses the paint as well.
      */
-    async resolveNode(node, asMask) {
+    async resolveNode(node) {
       if (node.type !== 'INSTANCE') {
         return undefined;
       }
@@ -62,10 +67,6 @@ export function createDicebearHooks(options: DicebearHookOptions): SerializeHook
 
       if (mainComponent === null || !isSupportedComponent(mainComponent)) {
         return undefined;
-      }
-
-      if (asMask) {
-        return [];
       }
 
       const componentGroup = resolveComponentName(node, mainComponent, options.aliasesEnabled).componentName;

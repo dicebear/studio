@@ -13,9 +13,11 @@ import type { ChannelPaint, PaintChannel, SerializeContext, SerializeHooks, Seri
  * Writes the SVG of a frame or a component straight from the layer data.
  *
  * Geometry comes from `fillGeometry` and `strokeGeometry`, which already
- * account for corner smoothing, stroke alignment, caps, joins and dashes.
- * Paints, effects, masks, blend modes and transforms are translated one to
- * one. Three hooks let a caller take over a layer, a bound style, or the
+ * account for corner smoothing, caps, joins and dashes. An inside or outside
+ * stroke needs one more step: Figma draws it with twice the weight and masks
+ * it by the fill, and `strokeGeometry` is that doubled outline before the
+ * mask. Paints, effects, masks, blend modes and transforms are translated one
+ * to one. Three hooks let a caller take over a layer, a bound style, or the
  * finished elements of a layer, see {@link SerializeHooks}.
  *
  * The root is exported by its contents: its own fill and transform stay out,
@@ -73,7 +75,19 @@ function paintAttributes(channel: PaintChannel, paint: ChannelPaint): Record<str
     attributes[`${channel}-opacity`] = formatNumber(paint.opacity);
   }
 
+  if (paint.style !== undefined) {
+    attributes.style = paint.style;
+  }
+
   return attributes;
+}
+
+/**
+ * Whether a fill and a stroke can share one element. A paint with a blend
+ * mode of its own blends alone in Figma, so it keeps an element of its own.
+ */
+function shareElement(fill: ChannelPaint | undefined, stroke: ChannelPaint): boolean {
+  return fill?.style === undefined && stroke.style === undefined;
 }
 
 function pathElement(path: VectorPath, attributes: Record<string, string>): INode {
@@ -111,6 +125,13 @@ async function channelPaints(ctx: Context, node: SceneNode & GeometryMixin, chan
 
 type Primitive = { name: 'rect' | 'ellipse' | 'circle'; attributes: Record<string, string> };
 
+const PRIMITIVE_NAMES = new Set<string>(['rect', 'ellipse', 'circle']);
+
+/** The corner radius a rectangle can carry as `rx`, capped at its half size. */
+function rectRadius(node: RectangleNode): number {
+  return Math.min(node.cornerRadius as number, node.width / 2, node.height / 2);
+}
+
 /**
  * The SVG primitive a layer is, when it is one. A rectangle with one radius
  * and no corner smoothing is a `<rect>`, a full ellipse a `<circle>` or an
@@ -132,7 +153,7 @@ function primitiveOf(ctx: Context, node: SceneNode): Primitive | null {
       width: formatNumber(node.width),
       height: formatNumber(node.height),
     };
-    const radius = Math.min(cornerRadius, node.width / 2, node.height / 2);
+    const radius = rectRadius(node);
 
     if (radius > 0) {
       attributes.rx = formatNumber(radius);
@@ -168,8 +189,8 @@ function primitiveOf(ctx: Context, node: SceneNode): Primitive | null {
 /** Moves a pure translation into a primitive's position attributes. */
 function placePrimitive(primitive: INode, matrix: Matrix): void {
   if (primitive.name === 'rect') {
-    primitive.attributes.x = formatNumber(matrix.e);
-    primitive.attributes.y = formatNumber(matrix.f);
+    primitive.attributes.x = formatNumber(Number(primitive.attributes.x ?? 0) + matrix.e);
+    primitive.attributes.y = formatNumber(Number(primitive.attributes.y ?? 0) + matrix.f);
   } else {
     primitive.attributes.cx = formatNumber(Number(primitive.attributes.cx) + matrix.e);
     primitive.attributes.cy = formatNumber(Number(primitive.attributes.cy) + matrix.f);
@@ -221,14 +242,153 @@ function strokeAttributes(node: SceneNode & GeometryMixin, stroke: ChannelPaint)
   return attributes;
 }
 
-/** The centerline a stroke runs along, in the layer's own coordinates. */
+/**
+ * The primitive a stroke inside or outside a primitive layer runs along:
+ * the same shape, moved in or out by half the weight. Figma's own SVG export
+ * writes it this way too. A dashed stroke stays outlined, its dashes are laid
+ * along the layer's edge and would shift on the shorter or longer line. A
+ * radius the move would close, or a shape it would swallow, stays outlined
+ * as well.
+ */
+function alignedPrimitive(
+  ctx: Context,
+  node: SceneNode & GeometryMixin,
+  primitive: Primitive,
+  strokes: ChannelPaint[],
+): Primitive | null {
+  if (node.strokeAlign === 'CENTER' || strokes.length !== 1 || node.strokeWeight === ctx.host.mixed) {
+    return null;
+  }
+
+  if (node.dashPattern.length > 0) {
+    return null;
+  }
+
+  const weight = node.strokeWeight as number;
+  const delta = node.strokeAlign === 'INSIDE' ? -weight / 2 : weight / 2;
+
+  if (primitive.name === 'rect') {
+    const width = node.width + 2 * delta;
+    const height = node.height + 2 * delta;
+    const radius = rectRadius(node as RectangleNode);
+
+    if (width <= 0 || height <= 0 || (radius > 0 && radius + delta <= 0)) {
+      return null;
+    }
+
+    const attributes: Record<string, string> = {
+      x: formatNumber(-delta),
+      y: formatNumber(-delta),
+      width: formatNumber(width),
+      height: formatNumber(height),
+    };
+
+    if (radius > 0) {
+      attributes.rx = formatNumber(radius + delta);
+    }
+
+    return { name: 'rect', attributes };
+  }
+
+  const rx = node.width / 2 + delta;
+  const ry = node.height / 2 + delta;
+
+  if (rx <= 0 || ry <= 0) {
+    return null;
+  }
+
+  const center = { cx: primitive.attributes.cx, cy: primitive.attributes.cy };
+
+  if (primitive.name === 'circle') {
+    return { name: 'circle', attributes: { ...center, r: formatNumber(rx) } };
+  }
+
+  return { name: 'ellipse', attributes: { ...center, rx: formatNumber(rx), ry: formatNumber(ry) } };
+}
+
+/**
+ * Whether a stroke covers what lies under it. Only then can the fill and an
+ * aligned stroke share one element: the fill would otherwise show through
+ * the half of the stroke band that the move took from it.
+ */
+function coversBelow(paint: ChannelPaint): boolean {
+  return paint.opacity === undefined && !paint.value.startsWith('url(');
+}
+
+/**
+ * Cuts an outlined inside or outside stroke to the side of the fill it
+ * belongs on, the way Figma masks its doubled stroke. An inside stroke is
+ * clipped to the fill outline, an outside stroke is masked by it. A layer
+ * without a fill outline, an open path for example, keeps the outline as
+ * it is.
+ */
+function alignOutlinedStroke(
+  ctx: Context,
+  node: SceneNode & GeometryMixin,
+  outlined: INode[],
+  outline: VectorPaths,
+): INode[] {
+  if (node.strokeAlign === 'CENTER' || outlined.length === 0 || outline.length === 0) {
+    return outlined;
+  }
+
+  if (node.strokeAlign === 'INSIDE') {
+    const id = ctx.nextId('clip');
+
+    ctx.defs.push(
+      element(
+        'clipPath',
+        { id },
+        outline.map((path) => pathElement(path, {})),
+      ),
+    );
+
+    return [element('g', { 'clip-path': `url(#${id})` }, outlined)];
+  }
+
+  // A luminance mask: white where the stroke may show, the fill cut out in
+  // black. The white covers the stroke's reach, with the miter joins in mind.
+  const id = ctx.nextId('mask');
+  const margin = strokeWeightOf(ctx, node) * 4;
+
+  ctx.defs.push(
+    element('mask', { id }, [
+      element('rect', {
+        x: formatNumber(-margin),
+        y: formatNumber(-margin),
+        width: formatNumber(node.width + 2 * margin),
+        height: formatNumber(node.height + 2 * margin),
+        fill: '#ffffff',
+      }),
+      ...outline.map((path) => pathElement(path, { fill: '#000000' })),
+    ]),
+  );
+
+  return [element('g', { mask: `url(#${id})` }, outlined)];
+}
+
+/**
+ * The centerline a stroke runs along, in the layer's own coordinates. A line
+ * layer sits at the bottom edge of its stroke: the stroke rises above the
+ * layer's y, and a round or square cap stays inside the layer's width
+ * instead of reaching past the end points. Figma's export writes it the same
+ * way.
+ */
 function centerline(node: SceneNode & GeometryMixin, fillGeometry: VectorPaths): VectorPaths {
   if (node.type === 'VECTOR') {
     return node.vectorPaths;
   }
 
   if (node.type === 'LINE') {
-    return [{ windingRule: 'NONE', data: `M 0 0 L ${formatNumber(node.width)} 0` }];
+    const half = (node.strokeWeight as number) / 2;
+    const inset = node.strokeCap === 'ROUND' || node.strokeCap === 'SQUARE' ? half : 0;
+
+    return [
+      {
+        windingRule: 'NONE',
+        data: `M ${formatNumber(inset)} ${formatNumber(-half)} L ${formatNumber(node.width - inset)} ${formatNumber(-half)}`,
+      },
+    ];
   }
 
   return fillGeometry;
@@ -284,6 +444,7 @@ async function shapeElements(
     // open path fills nothing), so those get a stroke element of their own.
     if (
       elements.length === 1 &&
+      shareElement(fills[0], strokes[0]) &&
       (primitive !== null || (node.type !== 'VECTOR' && outline().length === 1 && line.length === 1))
     ) {
       Object.assign(elements[0].attributes, attributes);
@@ -296,14 +457,34 @@ async function shapeElements(
     return elements;
   }
 
+  // An inside or outside stroke on a primitive runs along a moved primitive.
+  const aligned = primitive !== null ? alignedPrimitive(ctx, node, primitive, strokes) : null;
+
+  if (aligned !== null) {
+    const attributes = strokeAttributes(node, strokes[0]);
+
+    if (elements.length === 1 && fills.length === 1 && coversBelow(strokes[0]) && shareElement(fills[0], strokes[0])) {
+      Object.assign(elements[0].attributes, aligned.attributes, attributes);
+
+      return elements;
+    }
+
+    elements.push(element(aligned.name, { ...aligned.attributes, fill: 'none', ...attributes }));
+
+    return elements;
+  }
+
   // Outlined strokes are filled shapes, so they never take the primitive form.
   const strokeGeometry = node.strokeGeometry;
+  const outlined: INode[] = [];
 
   for (const stroke of strokes) {
     for (const path of strokeGeometry) {
-      elements.push(pathElement(path, paintAttributes('fill', stroke)));
+      outlined.push(pathElement(path, paintAttributes('fill', stroke)));
     }
   }
+
+  elements.push(...alignOutlinedStroke(ctx, node, outlined, outline()));
 
   return elements;
 }
@@ -337,9 +518,9 @@ function placeElements(
   ) {
     const [only] = elements;
 
-    // Outlined strokes leave a primitive layer as paths, which have no
-    // position attributes to move.
-    if (primitive && only.name !== 'path' && isTranslation(matrix)) {
+    // Outlined strokes leave a primitive layer as paths, or as a clipped
+    // group, which have no position attributes to move.
+    if (primitive && PRIMITIVE_NAMES.has(only.name) && isTranslation(matrix)) {
       if (!isIdentity(matrix)) {
         placePrimitive(only, matrix);
       }
@@ -390,6 +571,15 @@ function blendAttributes(ctx: Context, node: SceneNode, asMask: boolean): Record
   return attributes;
 }
 
+/** The stroke weight, the largest side for a rectangle with individual sides. */
+function strokeWeightOf(ctx: Context, node: SceneNode & GeometryMixin): number {
+  return node.strokeWeight !== ctx.host.mixed
+    ? (node.strokeWeight as number)
+    : 'strokeTopWeight' in node
+      ? Math.max(node.strokeTopWeight, node.strokeRightWeight, node.strokeBottomWeight, node.strokeLeftWeight)
+      : 0;
+}
+
 /** How far a shape's stroke reaches beyond its box. */
 function strokeOutset(ctx: Context, node: SceneNode & GeometryMixin): number {
   const strokes = node.strokes;
@@ -398,16 +588,11 @@ function strokeOutset(ctx: Context, node: SceneNode & GeometryMixin): number {
     return 0;
   }
 
-  const weight =
-    node.strokeWeight !== ctx.host.mixed
-      ? (node.strokeWeight as number)
-      : 'strokeTopWeight' in node
-        ? Math.max(node.strokeTopWeight, node.strokeRightWeight, node.strokeBottomWeight, node.strokeLeftWeight)
-        : 0;
-
   if (node.strokeAlign === 'INSIDE') {
     return 0;
   }
+
+  const weight = strokeWeightOf(ctx, node);
 
   return node.strokeAlign === 'CENTER' ? weight / 2 : weight;
 }
@@ -599,7 +784,10 @@ function createContext(options: SerializeOptions): Context {
           ctx.defs.push(resolved.def);
         }
 
-        result.push({ value: resolved.value, opacity: resolved.opacity });
+        // A paint blends on its own, apart from the layer's blend mode.
+        const style = blendModeStyle(paint.blendMode ?? 'NORMAL', warn);
+
+        result.push({ value: resolved.value, opacity: resolved.opacity, ...(style !== undefined ? { style } : {}) });
       }
 
       return result;

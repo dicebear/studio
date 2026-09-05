@@ -36,6 +36,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   frame with a palette fill keep their own colors instead of inheriting the palette, and nested groups keep their
   structure with transforms that svgo folds into the paths. Frames still do not clip, the avatar clips at the canvas.
   Angular and diamond gradients, background blur and image fills have no SVG counterpart and are reported as warnings.
+  An inside or outside stroke runs along a primitive moved by half its weight, the way Figma's export wrote it, or is
+  cut to the side of the fill it belongs on, since Figma outlines such a stroke with twice its weight. An instance that
+  masks its siblings keeps its component reference inside the `<mask>`, so the masked layers no longer drop out of the
+  export.
+- A line layer draws its stroke above its y position and keeps round and square caps inside its width, as Figma does,
+  instead of half a stroke lower and a cap longer.
+- A fill or stroke with a blend mode of its own keeps it as `mix-blend-mode` on its element. The export dropped it and
+  only carried the layer's blend mode.
 - Reference `@dicebear/schema@2.0.1` in definition files exported for 11.x. Files for 10.x keep `1.5.1`.
 - Keep definitions stable across an import and the following export: circles that Figma turned into paths are rebuilt,
   the precision comes from the imported file, and the export ends with a newline.
