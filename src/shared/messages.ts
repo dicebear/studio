@@ -10,7 +10,9 @@
 import type { AvatarRecord } from './avatarRecord';
 import type { ColorGroupSettings, ComponentGroupSettings, ExportData, FrameSettings, NormalizeData } from './types';
 
-export type Mode = 'generate' | 'style';
+export const MODES = ['generate', 'inspect', 'style'] as const;
+
+export type Mode = (typeof MODES)[number];
 
 export type Prefs = {
   mode: Mode;
@@ -28,13 +30,18 @@ export type FillTarget = {
   locked: boolean;
 };
 
+/** A selected layer the plugin generated, with what it remembers about it. */
+export type InspectItem = { id: string; name: string; record: AvatarRecord };
+
 export type SelectionInfo = {
   /** Fillable nodes, groups flattened to their children. */
   targets: FillTarget[];
   /** How many nodes the user selected, groups counted as one. */
   selectedCount: number;
-  /** Union of the selection's absolute bounds, for placing inserted avatars. */
+  /** Union of the selection's absolute bounds, for placing inserted avatars. Generate only. */
   bounds: { x: number; y: number; width: number; height: number } | null;
+  /** The generated avatars in the selection, groups searched. Inspect only. */
+  avatars: InspectItem[];
 };
 
 export type GenerateLayout = { size: number; columns: number; gap: number };
@@ -67,7 +74,8 @@ export type RequestMap = {
   'import:check': { params: Record<string, never>; result: { blocked: string | null } };
   'normalize:prepare': { params: { group: string }; result: NormalizeData };
   'normalize:apply': { params: { group: string }; result: NormalizeData };
-  'reveal:instances': { params: { ids: string[] }; result: Record<string, never> };
+  /** Scrolls the viewport to the nodes, and selects them when asked to. */
+  'canvas:reveal': { params: { ids: string[]; select?: boolean }; result: Record<string, never> };
   'storage:get': { params: { key: string }; result: { value: unknown } };
   'storage:set': { params: { key: string; value: unknown }; result: Record<string, never> };
   'storage:delete': { params: { key: string }; result: Record<string, never> };

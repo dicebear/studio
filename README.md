@@ -8,6 +8,9 @@ Figma frame of components and color styles into a DiceBear avatar style, and bac
   numbered prefix, and every option of the style is a control in the panel. Filled layers keep their shape and get an
   image fill, inserted avatars are vector frames. Each avatar remembers its style, seed and options, so the relaunch
   buttons on a layer can draw new seeds or swap the style later.
+- **Inspect.** Select a generated avatar and get what a developer needs to render the same one: the seed, the changed
+  options, the API URL in the format of your choice, and the JavaScript for `@dicebear/core`, each with a copy button.
+  Select a frame or group and every avatar inside it is listed.
 - **Export.** Turns the frame into a single JSON
   [style definition](https://www.dicebear.com/create-styles/definition-schema/) for DiceBear 11.x, animations included.
 - **Import.** Rebuilds a definition file inside an empty Figma file, with one component per variant, the palettes as

@@ -1,3 +1,5 @@
+import { styleTitleFromName } from './styleTitle';
+
 /**
  * What the plugin writes onto a node it filled or inserted, so a relaunch can
  * render the same avatar again or swap its style.
@@ -17,6 +19,11 @@ export type AvatarRecord = {
 };
 
 export const AVATAR_DATA_KEY = 'dicebear';
+
+/** What to call a style before its definition is loaded. */
+export function sourceTitle(source: AvatarSource): string {
+  return source.kind === 'collection' ? styleTitleFromName(source.name) : source.title;
+}
 
 export function encodeAvatarRecord(record: AvatarRecord): string {
   return JSON.stringify(record);

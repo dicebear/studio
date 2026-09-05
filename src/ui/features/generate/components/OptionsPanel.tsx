@@ -7,7 +7,7 @@ import type { StyleEntry } from '@/lib/render/styleRegistry';
 import { cn } from '@/lib/utils';
 import { useGenerateStore } from '@/store/generate';
 import { OptionField } from './OptionField';
-import { Section } from './Section';
+import { Section } from '@/components/Section';
 import { VariantField } from './VariantField';
 
 type RowProps = {

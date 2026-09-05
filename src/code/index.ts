@@ -1,9 +1,10 @@
 import type { Mode } from '@shared/messages';
-import { AVATAR_DATA_KEY, decodeAvatarRecord, type AvatarRecord } from '@shared/avatarRecord';
+import type { AvatarRecord } from '@shared/avatarRecord';
 import { clampWindow, DEFAULT_PREFS } from '@shared/prefs';
 import { installBridge, onEvent, onRequest, postEvent } from './bridge';
 import { readPrefs, writePrefs } from './prefs';
 import { describeSelection } from './selection/describeSelection';
+import { collectAvatarRecords, type RecordCandidate } from './selection/collectAvatarRecords';
 import {
   noteSelectionChange,
   onSelectionChange,
@@ -49,7 +50,7 @@ void readPrefs().then((stored) => {
 });
 
 function reportSelection(): void {
-  postEvent({ type: 'selection:changed', selection: describeSelection(mode === 'generate') });
+  postEvent({ type: 'selection:changed', selection: describeSelection(mode) });
 
   if (mode === 'style') {
     refreshStyle();
@@ -91,35 +92,9 @@ function findOwnerPage(node: BaseNode): PageNode | null {
 
 /** The first avatar record in the selection, for a relaunch button. */
 function findRelaunchRecord(): AvatarRecord | null {
-  const visit = (node: SceneNode): AvatarRecord | null => {
-    const record = decodeAvatarRecord(node.getPluginData(AVATAR_DATA_KEY));
+  const selection = figma.currentPage.selection as unknown as readonly RecordCandidate[];
 
-    if (record) {
-      return record;
-    }
-
-    if ('children' in node) {
-      for (const child of node.children) {
-        const found = visit(child);
-
-        if (found) {
-          return found;
-        }
-      }
-    }
-
-    return null;
-  };
-
-  for (const node of figma.currentPage.selection) {
-    const found = visit(node);
-
-    if (found) {
-      return found;
-    }
-  }
-
-  return null;
+  return collectAvatarRecords(selection)[0]?.record ?? null;
 }
 
 async function savePrefs(patch: Partial<typeof prefs>): Promise<void> {
@@ -143,7 +118,7 @@ onEvent('ui:ready', (event) => {
   postEvent({
     type: 'plugin:init',
     prefs,
-    selection: describeSelection(mode === 'generate'),
+    selection: describeSelection(mode),
     command: figma.command || null,
     relaunch: figma.command ? findRelaunchRecord() : null,
     fileSettings: readFileSettings(),
@@ -222,7 +197,7 @@ onRequest('normalize:apply', async ({ group }) => {
   return prepareNormalize(group, precision);
 });
 
-onRequest('reveal:instances', async ({ ids }) => {
+onRequest('canvas:reveal', async ({ ids, select = false }) => {
   const resolved = await Promise.all(ids.map((id) => figma.getNodeByIdAsync(id)));
   const nodes = resolved.filter((n): n is SceneNode => !!n && n.type !== 'PAGE' && n.type !== 'DOCUMENT');
   const targetPage = nodes.length > 0 ? findOwnerPage(nodes[0]) : null;
@@ -237,7 +212,10 @@ onRequest('reveal:instances', async ({ ids }) => {
 
   const onPage = nodes.filter((n) => findOwnerPage(n) === targetPage);
 
-  figma.currentPage.selection = onPage;
+  if (select) {
+    figma.currentPage.selection = onPage;
+  }
+
   figma.viewport.scrollAndZoomIntoView(onPage);
 
   return {};

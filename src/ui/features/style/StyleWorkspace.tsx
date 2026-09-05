@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
+import { SidebarItem } from '@/components/SidebarItem';
 import { useAppStore, type StageKind } from '@/store';
-import { Section } from '@/features/generate/components/Section';
+import { Section } from '@/components/Section';
 import { ColorGroupPanel } from './components/ColorGroupPanel';
 import { ComponentGroupPanel } from './components/ComponentGroupPanel';
 import { GeneralForm } from './components/GeneralForm';
@@ -23,17 +24,16 @@ function MenuItem({
   const active = stage.kind === kind && stage.name === name;
 
   return (
-    <button
-      type="button"
+    <SidebarItem
+      active={active}
       className={cn(
-        'flex h-7 w-full items-center truncate rounded-md px-2 text-left transition-colors',
+        'h-7 truncate px-2',
         alias && 'pl-5 text-muted-foreground before:mr-1.5 before:opacity-60 before:content-["↳"]',
-        active ? 'bg-selected' : 'hover:bg-accent',
       )}
       onClick={() => setStage(kind, name)}
     >
       {children}
-    </button>
+    </SidebarItem>
   );
 }
 

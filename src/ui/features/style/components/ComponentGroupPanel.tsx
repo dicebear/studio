@@ -68,7 +68,9 @@ export function ComponentGroupPanel({ group }: { group: string }) {
         group={group}
         source={entry.extendsGroup}
         instanceIds={entry.aliasInstanceIds ?? []}
-        onReveal={() => request('reveal:instances', { ids: entry.aliasInstanceIds ?? [] }).catch(() => undefined)}
+        onReveal={() =>
+          request('canvas:reveal', { ids: entry.aliasInstanceIds ?? [], select: true }).catch(() => undefined)
+        }
       />
     );
   }

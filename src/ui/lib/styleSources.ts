@@ -14,13 +14,28 @@ import { useGenerateStore } from '@/store/generate';
  * collection or the user's library. Reports the loading state on the way, so
  * the picker can show it.
  */
-export async function ensureStyle(key: StyleKey, refresh = false): Promise<StyleEntry> {
+export function ensureStyle(key: StyleKey, refresh = false): Promise<StyleEntry> {
   const known = getStyle(key);
 
   if (known && !refresh) {
-    return known;
+    return Promise.resolve(known);
   }
 
+  // Every row of a long selection asks for the same style at once, so one
+  // load serves them all.
+  let pending = refresh ? undefined : inFlight.get(key);
+
+  if (!pending) {
+    pending = loadStyle(key, refresh).finally(() => inFlight.delete(key));
+    inFlight.set(key, pending);
+  }
+
+  return pending;
+}
+
+const inFlight = new Map<StyleKey, Promise<StyleEntry>>();
+
+async function loadStyle(key: StyleKey, refresh: boolean): Promise<StyleEntry> {
   const store = useGenerateStore.getState();
   const parsed = parseStyleKey(key);
 

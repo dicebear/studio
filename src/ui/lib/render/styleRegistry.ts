@@ -1,6 +1,6 @@
 import { OptionsDescriptor, Style } from '@dicebear/core';
 import type { Descriptor } from './descriptor';
-import type { AvatarSource } from '@shared/avatarRecord';
+import { sourceTitle, type AvatarSource } from '@shared/avatarRecord';
 import { forgetRenders } from './renderAvatar';
 
 export type StyleKey = string;
@@ -68,11 +68,10 @@ export function registerStyle(source: AvatarSource, definition: unknown, options
   const key = styleKeyOf(source);
   const style = new Style(definition as never);
   const meta = style.meta();
-  const fallbackTitle = source.kind === 'collection' ? source.name : source.title;
   const entry: StyleEntry = {
     key,
     source,
-    title: options.title ?? meta.source().name() ?? fallbackTitle,
+    title: options.title ?? meta.source().name() ?? sourceTitle(source),
     style,
     descriptor: new OptionsDescriptor(style).toJSON(),
     license: { name: meta.license().name() ?? '', url: meta.license().url() ?? '' },

@@ -1,10 +1,10 @@
 import { RefreshCw } from 'lucide-react';
-import { attributionParts } from '@shared/attribution';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/Spinner';
+import { StyleCredit } from '@/components/StyleCredit';
 import type { StyleEntry } from '@/lib/render/styleRegistry';
 import { useGenerateStore } from '@/store/generate';
-import { ensureStyle } from '../lib/styleSources';
+import { ensureStyle } from '@/lib/styleSources';
 
 type Props = {
   entry: StyleEntry | null;
@@ -25,41 +25,6 @@ export function StyleBar({ entry, status, error }: Props) {
         : undefined,
   );
 
-  const link = (text: string, url: string | undefined, key: string) =>
-    url ? (
-      <a key={key} href={url} target="_blank" rel="noopener" className="text-foreground hover:underline">
-        {text}
-      </a>
-    ) : (
-      <span key={key}>{text}</span>
-    );
-
-  let credit: React.ReactNode = null;
-
-  if (entry && entry.source.kind === 'library') {
-    // What an uploaded definition says about itself is the uploader's claim,
-    // the same wording the playground on dicebear.com uses.
-    const { creator, sourceMeta, license } = entry;
-
-    if (creator.name || license.name) {
-      credit = (
-        <>
-          <span className="font-semibold">{entry.title}</span>
-          {sourceMeta.name && <> is based on {link(`“${sourceMeta.name}”`, sourceMeta.url || undefined, 'source')}</>}
-          {creator.name && <> by {link(creator.name, creator.url || undefined, 'creator')}</>}
-          {license.name && <>, licensed under {link(license.name, license.url || undefined, 'license')}</>} (as stated
-          by the creator; DiceBear has not verified this).
-        </>
-      );
-    } else {
-      credit = 'This style was provided by a user. License and copyright have not been verified by DiceBear.';
-    }
-  } else if (entry) {
-    credit = attributionParts({ creator: entry.creator, source: entry.sourceMeta, license: entry.license }).map(
-      (part, index) => link(part.text, part.url, String(index)),
-    );
-  }
-
   return (
     <div className="border-b">
       <div className="flex items-center gap-2 px-3 py-3">
@@ -76,7 +41,11 @@ export function StyleBar({ entry, status, error }: Props) {
         )}
       </div>
       <p className="border-t px-3 py-3 text-muted-foreground [text-wrap:pretty]">
-        {status === 'error' ? error : status === 'loading' ? 'Loading the style.' : credit}
+        {status === 'error'
+          ? error
+          : status === 'loading'
+            ? 'Loading the style.'
+            : entry && <StyleCredit entry={entry} />}
       </p>
     </div>
   );

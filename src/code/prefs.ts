@@ -1,4 +1,4 @@
-import type { Prefs } from '@shared/messages';
+import { MODES, type Mode, type Prefs } from '@shared/messages';
 import { clampWindow, DEFAULT_PREFS } from '@shared/prefs';
 
 const PREFS_KEY = 'prefs';
@@ -12,7 +12,7 @@ export async function readPrefs(): Promise<Prefs> {
     }
 
     return {
-      mode: stored.mode === 'style' ? 'style' : 'generate',
+      mode: MODES.includes(stored.mode as Mode) ? (stored.mode as Mode) : DEFAULT_PREFS.mode,
       window:
         stored.window && typeof stored.window.width === 'number' && typeof stored.window.height === 'number'
           ? clampWindow(stored.window)

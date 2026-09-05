@@ -1,28 +1,12 @@
-import { useEffect, useMemo } from 'react';
-import { getStyle, type StyleEntry } from '@/lib/render/styleRegistry';
+import { useMemo } from 'react';
+import { useStyleEntryFor, type StyleEntryState } from '@/hooks/useStyleEntry';
 import { useAppStore } from '@/store';
 import { useGenerateStore } from '@/store/generate';
-import { ensureStyle } from './styleSources';
 import { resolveSeeds } from './seeds';
 
-/** The style the Generate tab works with, loading it when it is only a key. */
-export function useStyleEntry(): {
-  entry: StyleEntry | null;
-  status: 'idle' | 'loading' | 'ready' | 'error';
-  error?: string;
-} {
-  const key = useGenerateStore((state) => state.styleKey);
-  const load = useGenerateStore((state) => (key ? state.loads[key] : undefined));
-
-  useEffect(() => {
-    if (key && !getStyle(key) && (!load || load.status === 'idle')) {
-      ensureStyle(key).catch(() => undefined);
-    }
-  }, [key, load]);
-
-  const entry = key ? (getStyle(key) ?? null) : null;
-
-  return { entry, status: entry ? 'ready' : (load?.status ?? 'idle'), error: load?.error };
+/** The style the Generate tab works with. */
+export function useStyleEntry(): StyleEntryState {
+  return useStyleEntryFor(useGenerateStore((state) => state.styleKey));
 }
 
 /** Fill when something fillable is selected, insert otherwise, unless the user said so. */

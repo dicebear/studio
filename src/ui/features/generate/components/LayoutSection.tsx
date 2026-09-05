@@ -1,6 +1,6 @@
 import { NumberInput } from '@/components/fields/NumberInput';
 import { useGenerateStore } from '@/store/generate';
-import { Section } from './Section';
+import { Section } from '@/components/Section';
 
 const ROWS: { key: 'size' | 'columns' | 'gap'; label: string; min: number; max: number }[] = [
   { key: 'size', label: 'Size in px', min: 16, max: 4096 },

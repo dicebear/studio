@@ -4,7 +4,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { renderDataUri } from '@/lib/render/renderAvatar';
 import type { StyleEntry } from '@/lib/render/styleRegistry';
 import { useGenerateStore } from '@/store/generate';
-import { AvatarPreview } from './AvatarPreview';
+import { AvatarPreview } from '@/components/AvatarPreview';
 
 /** How many previews are drawn, the rest is a count. */
 const PREVIEW_LIMIT = 30;

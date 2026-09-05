@@ -1,4 +1,5 @@
-import type { SelectionInfo } from '@shared/messages';
+import type { Mode, SelectionInfo } from '@shared/messages';
+import { collectAvatarRecords, type RecordCandidate } from './collectAvatarRecords';
 import { collectFillTargets, type FillCandidate } from './collectFillTargets';
 
 /** The union of the nodes' absolute bounds, for placing inserted avatars. */
@@ -28,18 +29,19 @@ export function unionBounds(nodes: readonly SceneNode[]): SelectionInfo['bounds'
 }
 
 /**
- * What the window needs to know about the current selection. The fill
- * targets are only worth collecting for the Generate tab, the Style tab
- * reads the frame on its own.
+ * What the window needs to know about the current selection. Each tab gets
+ * the part it reads, so the walks over the selection only run for the tab
+ * that is open. The Style tab reads the frame on its own.
  */
-export function describeSelection(withTargets: boolean): SelectionInfo {
+export function describeSelection(mode: Mode): SelectionInfo {
   const selection = figma.currentPage.selection;
 
   return {
-    // Figma's nodes carry a stricter `findAllWithCriteria` signature than the
-    // candidate shape needs, the call passes the same arrays either way.
-    targets: withTargets ? collectFillTargets(selection as unknown as readonly FillCandidate[]) : [],
+    // Figma's nodes carry stricter method signatures than the candidate
+    // shapes need, the calls pass the same arrays either way.
+    targets: mode === 'generate' ? collectFillTargets(selection as unknown as readonly FillCandidate[]) : [],
     selectedCount: selection.length,
-    bounds: unionBounds(selection),
+    bounds: mode === 'generate' ? unionBounds(selection) : null,
+    avatars: mode === 'inspect' ? collectAvatarRecords(selection as unknown as readonly RecordCandidate[]) : [],
   };
 }

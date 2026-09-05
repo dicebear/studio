@@ -1,7 +1,7 @@
 import { useAppStore } from '@/store';
 import { useGenerateStore } from '@/store/generate';
-import { Section } from './Section';
-import { Segmented } from './Segmented';
+import { Section } from '@/components/Section';
+import { Segmented } from '@/components/Segmented';
 
 /** Fill the selection or insert new avatars, with the selection spelled out. */
 export function TargetSection({ mode }: { mode: 'fill' | 'insert' }) {

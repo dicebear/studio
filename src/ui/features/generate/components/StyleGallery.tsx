@@ -20,7 +20,7 @@ import { collectionKey, forgetStyle, libraryKey } from '@/lib/render/styleRegist
 import { useAppStore } from '@/store';
 import { useGenerateStore } from '@/store/generate';
 import { loadCatalog, loadLibrary } from '../lib/catalogLoader';
-import { addLibraryFile } from '../lib/styleSources';
+import { addLibraryFile } from '@/lib/styleSources';
 import { StyleCard } from './StyleCard';
 
 type SourceTab = 'collection' | 'library';

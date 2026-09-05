@@ -6,7 +6,7 @@ import { NumberInput } from '@/components/fields/NumberInput';
 import { SimpleSelect } from '@/components/fields/SimpleSelect';
 import { MAX_INSERT, useGenerateStore } from '@/store/generate';
 import { listSeeds, randomSalt, type SeedStrategy } from '../lib/seeds';
-import { Section } from './Section';
+import { Section } from '@/components/Section';
 
 const KINDS: { value: SeedStrategy['kind']; label: string }[] = [
   { value: 'random', label: 'Random' },

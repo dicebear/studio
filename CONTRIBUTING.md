@@ -58,12 +58,12 @@ src/
 │   ├── export/       # Builds the exported definition
 │   ├── generate/     # Fills layers and inserts avatars
 │   ├── import/       # Rebuilds a definition file as Figma pages
-│   ├── selection/    # Describes the selection for the window
+│   ├── selection/    # Describes the selection for the window: fill targets, avatar records
 │   ├── settings/     # Reads/writes plugin data on the frame
 │   └── utils/
 └── ui/          # React app shown in the Figma plugin window
     ├── components/   # Shared components, `ui/` holds the shadcn/ui sources
-    ├── features/     # One folder per tab: generate, style
+    ├── features/     # One folder per tab: generate, inspect, style
     ├── lib/          # Bridge, API client, catalog cache, rendering
     └── store/        # zustand stores
 public/manifest.json  # Figma plugin manifest
@@ -107,6 +107,8 @@ Then smoke-test the change in the Figma desktop app. The basics to check:
   plugin. If your change touches export code, export a definition and diff it against one from the previous build.
   Import a definition into an empty file and check the thumbnail page. Upload the exported definition to the library in
   the Generate tab and render with it.
+- Inspect: select a filled layer, an inserted avatar and a group holding both. Every avatar is listed, the API URL opens
+  the same avatar in the browser, and the copy buttons work in the plugin window.
 - Offline: an uncached style shows an error with a retry, a cached one still renders.
 
 ## Code style

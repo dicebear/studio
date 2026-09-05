@@ -6,7 +6,7 @@ import type { Overrides } from '@/lib/render/avatarOptions';
 import { renderComponentVariant } from '@/lib/render/componentPreview';
 import type { StyleEntry } from '@/lib/render/styleRegistry';
 import { cn, toggleInList } from '@/lib/utils';
-import { AvatarPreview } from './AvatarPreview';
+import { AvatarPreview } from '@/components/AvatarPreview';
 
 type Props = {
   entry: StyleEntry;

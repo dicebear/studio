@@ -1,4 +1,4 @@
-import { BookOpen, PenTool, Sparkles } from 'lucide-react';
+import { BookOpen, Code, PenTool, Sparkles } from 'lucide-react';
 import type { Mode } from '@shared/messages';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
@@ -6,6 +6,7 @@ import { useAppStore } from '@/store';
 
 const ITEMS: { mode: Mode; label: string; icon: typeof Sparkles }[] = [
   { mode: 'generate', label: 'Generate', icon: Sparkles },
+  { mode: 'inspect', label: 'Inspect', icon: Code },
   { mode: 'style', label: 'Style', icon: PenTool },
 ];
 

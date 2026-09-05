@@ -17,6 +17,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   on the current avatar, colors as the palette's swatches. A preview grid shows the avatars before they land. Each
   generated layer remembers its style, seed and options, and two relaunch buttons draw new seeds or open the picker for
   another style.
+- Inspect avatars. The new Inspect tab shows what a generated layer carries: the style and its version, the seed, the
+  options that differ from the style's defaults, the `api.dicebear.com` URL as SVG, PNG, JPG or WebP, and the JavaScript
+  that renders the same avatar with `@dicebear/core`. Each of them has a copy button. Selecting a frame or group lists
+  every avatar inside it.
 - The plugin window follows Figma's light and dark theme and can be resized from the corner. Its size and the last tab
   are remembered.
 - Export for DiceBear 11.x, the line that plays animations.

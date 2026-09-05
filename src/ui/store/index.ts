@@ -18,7 +18,7 @@ export type ComponentTab = 'settings' | 'weights' | 'tags' | 'normalize';
 
 export type Progress = { message: string; fraction: number | null };
 
-const EMPTY_SELECTION: SelectionInfo = { targets: [], selectedCount: 0, bounds: null };
+const EMPTY_SELECTION: SelectionInfo = { targets: [], selectedCount: 0, bounds: null, avatars: [] };
 
 /** How long a settings change waits for the next one before it is sent. */
 const SETTINGS_DEBOUNCE_MS = 150;
@@ -64,6 +64,8 @@ export type AppState = {
   relaunch: AvatarRecord | null;
   progress: Progress | null;
   style: StyleState;
+  /** The avatar the Inspect tab shows, as long as it is still selected. */
+  inspectActiveId: string | null;
 
   init(payload: {
     prefs: Prefs;
@@ -76,6 +78,7 @@ export type AppState = {
   setSelection(selection: SelectionInfo): void;
   setProgress(progress: Progress | null): void;
   clearRelaunch(): void;
+  setInspectActive(id: string): void;
 
   setStyleStatus(status: StyleStatus, message?: string): void;
   setStyleData(data: ExportData): void;
@@ -110,6 +113,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     warnings: { import: [], export: [] },
     importBlocked: null,
   },
+  inspectActiveId: null,
 
   init: ({ prefs, selection, command, relaunch }) =>
     set({ ready: true, prefs, mode: prefs.mode, selection, command, relaunch }),
@@ -133,6 +137,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   setProgress: (progress) => set({ progress }),
 
   clearRelaunch: () => set({ command: null, relaunch: null }),
+
+  setInspectActive: (inspectActiveId) => set({ inspectActiveId }),
 
   setStyleStatus: (status, message = '') =>
     set((state) => ({ style: { ...state.style, status, message }, progress: null })),

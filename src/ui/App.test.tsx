@@ -19,7 +19,7 @@ describe('App', () => {
     sendFromPlugin({
       type: 'plugin:init',
       prefs: { mode: 'generate', window: { width: 780, height: 560 }, lastStyleKey: null },
-      selection: { targets: [], selectedCount: 0, bounds: null },
+      selection: { targets: [], selectedCount: 0, bounds: null, avatars: [] },
       command: null,
       relaunch: null,
       fileSettings: null,

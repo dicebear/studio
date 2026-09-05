@@ -18,7 +18,7 @@ import { TargetSection } from './components/TargetSection';
 import { loadCatalog } from './lib/catalogLoader';
 import { runGenerate } from './lib/runGenerate';
 import { randomSeeds } from './lib/seeds';
-import { ensureStyle } from './lib/styleSources';
+import { ensureStyle } from '@/lib/styleSources';
 import { useSeeds, useStyleEntry, useTargetMode } from './lib/useGenerateContext';
 
 /** Picks the remembered style once the sandbox has said hello. */
