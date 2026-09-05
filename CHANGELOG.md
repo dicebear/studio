@@ -44,6 +44,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   of the avatar frame instead of adding a background rectangle. The export renders the frame contents only, so that fill
   stays out of the definition. A file imported with version 39 still holds the rectangle, delete it before the next
   export.
+- Turn rectangles into paths before merging, so neighbouring shapes with the same fill become one element. Pixel styles
+  come out about a quarter smaller, and an export now passes the check of `dicebear optimize`, which has run this step
+  all along.
 
 ## [39] - 2026-08-27
 

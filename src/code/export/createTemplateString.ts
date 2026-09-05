@@ -56,6 +56,10 @@ export async function createTemplateString(
     cleanupNumericValues({
       floatPrecision: exportData.frame.settings.precision,
     }),
+    // Rectangles become paths so that mergePaths can fold neighbours with the
+    // same attributes into one element. Pixel styles shrink by a quarter. The
+    // CLI optimizer runs the same pair, so an export passes its check.
+    'convertShapeToPath',
     'mergePaths',
   ];
 

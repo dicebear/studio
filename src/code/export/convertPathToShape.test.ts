@@ -21,6 +21,7 @@ const run = (d: string, precision = 3) =>
       normalizeArcFlags(),
       { name: 'convertTransform', params: { floatPrecision: precision } },
       cleanupNumericValues({ floatPrecision: precision }),
+      'convertShapeToPath',
       'mergePaths',
     ],
   }).data.replace(/<\/?svg>/g, '');
