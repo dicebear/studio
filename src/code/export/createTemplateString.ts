@@ -2,7 +2,6 @@
 import { optimize } from 'svgo/browser';
 import { Export } from '../types';
 import { normalizeName } from '../utils/normalizeName';
-import { useDefinitionFile } from '../utils/useDefinitionFile';
 import { PluginConfig } from 'svgo';
 import { cleanupNumericValues } from './cleanupNumericValues';
 import { convertPathToShape } from './convertPathToShape';
@@ -85,24 +84,11 @@ export async function createTemplateString(
   // Remove svg tag
   result = result.replace(/(^<svg.*?>|<\/svg>$)/gi, '');
 
-  if (useDefinitionFile(exportData.frame.settings.dicebearVersion)) {
-    // Replace colors
-    result = result.replace(/{{colors\.([a-z0-9]*)}}/gi, 'url(#color-$1)');
-
-    // Replace components
-    result = result.replace(/{{components\.([a-z0-9]*)}}/gi, `<use href="#component-$1"/>`);
-
-    return result;
-  }
-
-  // Escape JS template string characters
-  result = result.replace(/(\\|\$|\`)/g, '$1');
-
   // Replace colors
-  result = result.replace(/{{colors\.([a-z0-9]*)}}/gi, '${escape.xml(`${colors.$1}`)}');
+  result = result.replace(/{{colors\.([a-z0-9]*)}}/gi, 'url(#color-$1)');
 
   // Replace components
-  result = result.replace(/{{components\.([a-z0-9]*)}}/gi, "${components.$1?.value(components, colors) ?? ''}");
+  result = result.replace(/{{components\.([a-z0-9]*)}}/gi, `<use href="#component-$1"/>`);
 
-  return '`' + result + '`';
+  return result;
 }

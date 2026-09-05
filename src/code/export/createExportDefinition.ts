@@ -6,9 +6,9 @@ import { createTemplateString } from './createTemplateString';
 import { getLicenseAsText } from '../utils/getLicenseAsText';
 import { parse } from 'svgson';
 import { convertSvgsonToDefinition } from '../utils/convertSvgsonToDefinition';
-import { definitionSchemaVersion } from '../utils/useDefinitionFile';
+import { SCHEMA_URL } from '@shared/schemaVersion';
 import { postProgress } from '../utils/postProgress';
-import { createExportSerializer } from './createExportSerializer';
+import { createSerializer } from '../serializer/serializeNode';
 
 const byCodepoint = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 const byEntryKey = ([a]: [string, unknown], [b]: [string, unknown]): number => byCodepoint(a, b);
@@ -23,7 +23,7 @@ export async function createExportDefinition(exportData: Export, warn: (message:
   const size = roundTo(((await figma.getNodeByIdAsync(exportData.frame.id)) as FrameNode).width, precision);
   const components: DefinitionComponents = {};
   const colors: DefinitionColors = {};
-  const serialize = createExportSerializer(exportData, warn);
+  const serialize = createSerializer({ warn });
 
   // Every variant is one step, the avatar frame the last one.
   const total =
@@ -142,7 +142,7 @@ export async function createExportDefinition(exportData: Export, warn: (message:
 
   const definition = JSON.stringify(
     removeEmptyValuesFromObject({
-      $schema: `https://cdn.hopjs.net/npm/@dicebear/schema@${definitionSchemaVersion(exportData.frame.settings.dicebearVersion)}/dist/definition.min.json`,
+      $schema: SCHEMA_URL,
       $comment: 'Exported by DiceBear Studio for Figma. https://www.figma.com/community/plugin/1005765655729342787',
       meta: {
         license: {

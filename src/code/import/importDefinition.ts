@@ -20,7 +20,7 @@ import { isMotionAvailable } from '../utils/motionSupport';
 import { decomposeOriginAnimations } from '../animation/decomposeOrigin';
 import { animationLayerName } from '../animation/names';
 import { CURRENT_COLOR_GROUP } from '../utils/currentColor';
-import { tick } from '../utils/tick';
+import { tick } from '@shared/tick';
 import { postProgress } from '../utils/postProgress';
 import { hexColor } from '../figma-svg';
 import {
@@ -91,13 +91,18 @@ function validateDefinition(definition: DefinitionFile): void {
   }
 }
 
-async function ensureEmptyTarget(): Promise<void> {
+/**
+ * Why an import into this file is not possible, or null when it is. An
+ * import needs a file without a style in it, since it would tangle its
+ * palettes and components with the ones already there.
+ */
+export async function describeImportBlock(): Promise<string | null> {
   // The style check needs no page loading, so it rejects a real style file
   // before the expensive full document load.
   const paintStyles = await figma.getLocalPaintStylesAsync();
 
   if (paintStyles.some(isSupportedColor)) {
-    throw new Error('This file already contains color styles with group names. Import definitions into an empty file.');
+    return 'This file already holds color styles with group names. Import a definition into an empty file.';
   }
 
   await figma.loadAllPagesAsync();
@@ -105,7 +110,17 @@ async function ensureEmptyTarget(): Promise<void> {
   const components = figma.root.findAllWithCriteria({ types: ['COMPONENT'] });
 
   if (components.some(isSupportedComponent)) {
-    throw new Error('This file already contains component groups. Import definitions into an empty file.');
+    return 'This file already holds component groups. Import a definition into an empty file.';
+  }
+
+  return null;
+}
+
+async function ensureEmptyTarget(): Promise<void> {
+  const block = await describeImportBlock();
+
+  if (block !== null) {
+    throw new Error(block);
   }
 }
 
@@ -851,7 +866,11 @@ async function bindRemainingCurrentColor(
   }
 }
 
-export async function importDefinition(definition: DefinitionFile, styleName: string): Promise<string[]> {
+export async function importDefinition(
+  definition: DefinitionFile,
+  styleName: string,
+  picksBySeed: Record<string, Record<string, unknown>>,
+): Promise<string[]> {
   validateDefinition(definition);
   await ensureEmptyTarget();
 
@@ -1084,10 +1103,7 @@ export async function importDefinition(definition: DefinitionFile, styleName: st
   const shapeRendering = definition.attributes?.['shape-rendering'];
 
   const frameSettings: FrameSettings = {
-    dicebearVersion: '11.x',
     title,
-    packageName: '',
-    packageVersion: '',
     creator: meta.creator?.name ?? '',
     homepage: meta.creator?.url ?? '',
     sourceTitle: meta.source?.name ?? '',
@@ -1097,10 +1113,7 @@ export async function importDefinition(definition: DefinitionFile, styleName: st
     licenseText: meta.license?.text ?? '',
     backgroundColorGroupName: definition.colors?.background ? 'background' : '',
     shapeRendering: typeof shapeRendering === 'string' ? shapeRendering : 'auto',
-    onPreCreateHook: '',
-    onPostCreateHook: '',
     precision: definitionPrecision(definition),
-    fileShareUrl: '',
   };
 
   setFrameSettings(frame, frameSettings);
@@ -1150,7 +1163,7 @@ export async function importDefinition(definition: DefinitionFile, styleName: st
 
   try {
     await createThumbnail(thumbnailPage, {
-      definition,
+      picksBySeed,
       title,
       frame,
       paintStylesByGroup,

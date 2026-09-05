@@ -1,12 +1,17 @@
-import { Avatar, Color, Style } from '@dicebear/core';
-import { DefinitionFile } from '../types';
+import { THUMBNAIL_SEEDS } from '@shared/thumbnailSeeds';
+import { expandHex } from './serializeDefinition';
 import { loadFirstFont } from '../utils/loadFirstFont';
-import { tick } from '../utils/tick';
+import { tick } from '@shared/tick';
 import { componentTransform, multiply, Picks } from './componentTransform';
 import { BRAND_ACCENT, BRAND_BACKGROUND, LOGO_SVG } from './logo';
 
 export type ThumbnailOptions = {
-  definition: DefinitionFile;
+  /**
+   * What the DiceBear renderer picks per seed: the variant of every
+   * component, the color of every palette, the transform of every component.
+   * The window asks the renderer, the tile only applies the result.
+   */
+  picksBySeed: Record<string, Picks>;
   title: string;
   /** The finished avatar frame, the sample tiles are clones of it. */
   frame: FrameNode;
@@ -42,41 +47,6 @@ const TITLE_FONTS: FontName[] = [
   { family: 'Inter', style: 'Bold' },
 ];
 
-/** One seed per tile, so importing the same definition twice matches. */
-const TILE_SEEDS = [
-  'Ada',
-  'Bo',
-  'Cleo',
-  'Dana',
-  'Emil',
-  'Fenn',
-  'Gus',
-  'Hedda',
-  'Isla',
-  'Juno',
-  'Kira',
-  'Leo',
-  'Mika',
-  'Nova',
-  'Ola',
-  'Pip',
-  'Quinn',
-  'Remy',
-  'Sasha',
-  'Tam',
-  'Vera',
-];
-
-/**
- * Asks the DiceBear renderer what it would draw for the seed: the variant of
- * every component, the color of every palette, the transform of every
- * component. Probabilities, weights and palette rules like `contrastTo` all
- * come from the real resolver, the tile only has to apply the result.
- */
-function resolvePicks(style: Style, seed: string): Picks {
-  return new Avatar(style, { seed }).toJSON().options as Picks;
-}
-
 function pickHex(picks: Picks, group: string): string | null {
   const value = picks[`${group}Color`];
   const hex = Array.isArray(value) ? value[0] : value;
@@ -89,7 +59,7 @@ function pickHex(picks: Picks, group: string): string | null {
  * keeps the definition's short form, the resolver expands it.
  */
 function normalizeHex(hex: string): string {
-  return Color.toHex(hex).slice(1);
+  return (expandHex(hex) ?? `#${hex.replace(/^#/, '').toLowerCase()}`).slice(1);
 }
 
 /**
@@ -277,12 +247,11 @@ async function applyColorPicks(
  */
 async function createSampleAvatar(
   tile: FrameNode,
-  style: Style,
+  picks: Picks,
   seed: string,
   options: ThumbnailOptions,
   variantsByGroup: Map<string, Map<string, ComponentNode>>,
 ): Promise<void> {
-  const picks = resolvePicks(style, seed);
   const clone = options.frame.clone();
 
   tile.appendChild(clone);
@@ -435,15 +404,9 @@ export async function createThumbnail(page: PageNode, options: ThumbnailOptions)
   await createTitle(frame, title, options.warnOnce);
   createBadge(frame, options.warnOnce);
 
-  let style: Style | null = null;
-
-  try {
-    style = new Style(options.definition);
-  } catch (e: any) {
-    options.warnOnce(`The sample avatars were skipped, the renderer rejected the definition (${e.message}).`);
-  }
-
-  if (style) {
+  if (Object.keys(options.picksBySeed).length === 0) {
+    options.warnOnce('The sample avatars were skipped, the renderer rejected the definition.');
+  } else {
     const variantsByGroup = indexVariants(options.componentsByGroup);
     const totalTiles = (PYRAMID_ROWS * (PYRAMID_ROWS + 1)) / 2;
     const pyramid = figma.createFrame();
@@ -480,14 +443,15 @@ export async function createThumbnail(page: PageNode, options: ThumbnailOptions)
         // without one.
         tile.fills = [figma.util.solidPaint(ACCENT)];
 
+        const seed = THUMBNAIL_SEEDS[(tileIndex - 1) % THUMBNAIL_SEEDS.length];
+        const picks = options.picksBySeed[seed];
+
         try {
-          await createSampleAvatar(
-            tile,
-            style,
-            TILE_SEEDS[(tileIndex - 1) % TILE_SEEDS.length],
-            options,
-            variantsByGroup,
-          );
+          if (!picks) {
+            throw new Error(`no picks for seed "${seed}"`);
+          }
+
+          await createSampleAvatar(tile, picks, seed, options, variantsByGroup);
         } catch (e: any) {
           failed++;
           firstError ||= String(e?.message ?? e);

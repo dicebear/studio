@@ -9,8 +9,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
-- Export for DiceBear 11.x, the line that plays animations. New frames and imported definitions start on 11.x. An export
-  for 10.x writes the same definition without the animations and says so in a warning.
+- Generate avatars. The new Generate tab fills the selected layers with avatars as image fills, which keeps their shape,
+  corners and masks, or inserts a batch of new avatars as vector frames. The tab opens on a gallery of the DiceBear
+  collection, loaded from `api.dicebear.com` and cached in the plugin storage, next to the style built in the current
+  file and a personal library of uploaded definition files that survives across files. Seeds come from a random draw,
+  the layer names, a list or a numbered prefix. Every option the style offers is a control, variants show as thumbnails
+  on the current avatar, colors as the palette's swatches. A preview grid shows the avatars before they land. Each
+  generated layer remembers its style, seed and options, and two relaunch buttons draw new seeds or open the picker for
+  another style.
+- The plugin window follows Figma's light and dark theme and can be resized from the corner. Its size and the last tab
+  are remembered.
+- Export for DiceBear 11.x, the line that plays animations.
 - Round-trip animations with Figma Motion. The export turns a layer's keyframe tracks (translation, rotation, scale,
   opacity) into the `animations` blocks of `@dicebear/schema` 2.0, the import writes them back onto the layers. The
   animation name is the layer name. Whatever one side cannot represent, springs or negative delays for example, is
@@ -22,8 +31,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Show the export progress. The loading screen names the component that is being exported and counts the steps on a
   progress bar, and the export gives the window a turn between components so it stays responsive.
 
+### Removed
+
+- The export for DiceBear 10.x and older. The plugin writes 11.x definitions only, so the version setting, the 9.x npm
+  package export with its templates, and the package and hook forms are gone. The 10.x cores render 11.x definitions the
+  same, without the animations.
+
 ### Changed
 
+- The window is a React app on shadcn/ui and Tailwind CSS instead of Vue and PrimeVue. PrimeVue 5 requires a license
+  key, which a plugin that is handed to everyone cannot carry.
+- The sandbox no longer bundles `@dicebear/core`. The window computes what the renderer picks for the thumbnail seeds
+  and sends it along with an import.
+- The window and the sandbox exchange typed requests and events declared in one shared file instead of strings split on
+  colons.
 - Build the thumbnail tiles from the avatar frame instead of importing rendered SVGs. Each tile is a clone of the frame
   with the variants, transforms and colors the DiceBear resolver picked for its seed, so the tiles stay editable:
   variants swap through the instance dropdown, colors rebind to the palette styles. An instance whose nested parts carry
@@ -46,7 +67,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - A fill or stroke with a blend mode of its own keeps it as `mix-blend-mode` on its element. The export dropped it and
   only carried the layer's blend mode.
 - The `$comment` of an exported definition says exported instead of generated, the file may be edited by hand.
-- Reference `@dicebear/schema@2.0.1` in definition files exported for 11.x. Files for 10.x keep `1.5.1`.
+- Reference `@dicebear/schema@2.0.1` in definition files.
 - Keep definitions stable across an import and the following export: circles that Figma turned into paths are rebuilt,
   the precision comes from the imported file, and the export ends with a newline.
 - Export layers bound to the background palette like any other layer. Version 39 dropped them from the definition, which

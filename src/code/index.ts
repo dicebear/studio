@@ -1,9 +1,21 @@
-import './utils/polyfills';
+import type { Mode } from '@shared/messages';
+import { AVATAR_DATA_KEY, decodeAvatarRecord, type AvatarRecord } from '@shared/avatarRecord';
+import { clampWindow, DEFAULT_PREFS } from '@shared/prefs';
+import { installBridge, onEvent, onRequest, postEvent } from './bridge';
+import { readPrefs, writePrefs } from './prefs';
+import { describeSelection } from './selection/describeSelection';
+import {
+  noteSelectionChange,
+  onSelectionChange,
+  selectionEventsSuppressed,
+  suppressSelectionEvents,
+  withoutSelectionEvents,
+} from './selection/suppress';
 import { getFrameSelection } from './utils/getFrameSelection';
-import { getExport, invalidateExportCache } from './export/exportCache';
-import { importDefinition } from './import/importDefinition';
+import { invalidateExportCache } from './export/exportCache';
+import { describeImportBlock, importDefinition } from './import/importDefinition';
 import { DefinitionFile } from './types';
-import { processTask } from './utils/processTask';
+import { refreshStyle } from './utils/processTask';
 import { setComponentGroupSettings } from './settings/setComponentGroupSettings';
 import { setFrameSettings } from './settings/setFrameSettings';
 import { getFrameSettings } from './settings/getFrameSettings';
@@ -12,27 +24,55 @@ import { setColorGroupSettings } from './settings/setColorGroupSettings';
 import { prepareNormalize } from './normalize/prepareNormalize';
 import { applyNormalize } from './normalize/applyNormalize';
 import { acknowledgeProgress } from './utils/postProgress';
+import { beginJob, endJob, runChunk } from './generate/batches';
 
-figma.showUI(__html__, { width: 720, height: 400 });
+/** How long a burst of selection changes settles before the window hears of it. */
+const SELECTION_DEBOUNCE_MS = 50;
+
+/** Where the Generate settings of this document live. */
+const FILE_SETTINGS_KEY = 'generate';
+
+let prefs = DEFAULT_PREFS;
+let mode: Mode = prefs.mode;
+let selectionTimer: ReturnType<typeof setTimeout> | null = null;
 
 figma.skipInvisibleInstanceChildren = true;
 
-// The import changes pages and the selection itself. Reacting to those events
-// would race the import's own result message.
-let importInProgress = false;
+// The window opens right away at the default size and takes the remembered
+// one as soon as the store answers.
+figma.showUI(__html__, { themeColors: true, ...DEFAULT_PREFS.window });
+
+void readPrefs().then((stored) => {
+  prefs = stored;
+  mode = stored.mode;
+  figma.ui.resize(stored.window.width, stored.window.height);
+});
+
+function reportSelection(): void {
+  postEvent({ type: 'selection:changed', selection: describeSelection(mode === 'generate') });
+
+  if (mode === 'style') {
+    refreshStyle();
+  }
+}
+
+onSelectionChange(reportSelection);
 
 figma.on('selectionchange', () => {
-  if (importInProgress) {
+  if (selectionEventsSuppressed()) {
+    noteSelectionChange();
+
     return;
   }
 
-  processTask(
-    async () => ({
-      type: 'loaded',
-      data: await getExport(),
-    }),
-    true,
-  );
+  if (selectionTimer !== null) {
+    clearTimeout(selectionTimer);
+  }
+
+  selectionTimer = setTimeout(() => {
+    selectionTimer = null;
+    reportSelection();
+  }, SELECTION_DEBOUNCE_MS);
 });
 
 function getNormalizePrecision(): number {
@@ -49,133 +89,198 @@ function findOwnerPage(node: BaseNode): PageNode | null {
   return current as PageNode | null;
 }
 
-async function postNormalize(groupName: string, precision: number): Promise<void> {
+/** The first avatar record in the selection, for a relaunch button. */
+function findRelaunchRecord(): AvatarRecord | null {
+  const visit = (node: SceneNode): AvatarRecord | null => {
+    const record = decodeAvatarRecord(node.getPluginData(AVATAR_DATA_KEY));
+
+    if (record) {
+      return record;
+    }
+
+    if ('children' in node) {
+      for (const child of node.children) {
+        const found = visit(child);
+
+        if (found) {
+          return found;
+        }
+      }
+    }
+
+    return null;
+  };
+
+  for (const node of figma.currentPage.selection) {
+    const found = visit(node);
+
+    if (found) {
+      return found;
+    }
+  }
+
+  return null;
+}
+
+async function savePrefs(patch: Partial<typeof prefs>): Promise<void> {
+  prefs = { ...prefs, ...patch };
+  await writePrefs(prefs);
+}
+
+function readFileSettings(): unknown {
   try {
-    figma.ui.postMessage({
-      type: 'normalize',
-      data: await prepareNormalize(groupName, precision),
-    });
-  } catch (e: any) {
-    figma.ui.postMessage({
-      type: 'normalize:error',
-      data: { groupName, message: e.message },
-    });
+    const raw = figma.root.getPluginData(FILE_SETTINGS_KEY);
+
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
   }
 }
 
-figma.ui.onmessage = async (msg) => {
-  const typeSplit = msg.type.split(':');
+onEvent('ui:ready', (event) => {
+  mode = event.mode;
 
-  switch (typeSplit[0]) {
-    case 'init':
-      processTask(
-        async () => ({
-          type: 'loaded',
-          data: await getExport(),
-        }),
-        true,
-      );
-      break;
+  postEvent({
+    type: 'plugin:init',
+    prefs,
+    selection: describeSelection(mode === 'generate'),
+    command: figma.command || null,
+    relaunch: figma.command ? findRelaunchRecord() : null,
+    fileSettings: readFileSettings(),
+  });
 
-    case 'set':
-      switch (typeSplit[1]) {
-        case 'frame':
-          setFrameSettings(getFrameSelection(), msg.data);
-          invalidateExportCache();
-          break;
-
-        case 'components':
-          setComponentGroupSettings(getFrameSelection(), typeSplit[2], msg.data);
-          invalidateExportCache();
-          break;
-
-        case 'colors':
-          setColorGroupSettings(getFrameSelection(), typeSplit[2], msg.data);
-          invalidateExportCache();
-          break;
-      }
-      break;
-
-    case 'export':
-      processTask(async () => ({
-        type: 'export',
-        data: await createExport(),
-      }));
-      break;
-
-    case 'import':
-      importInProgress = true;
-
-      processTask(async () => {
-        try {
-          const { definition, name } = msg.data as { definition: DefinitionFile; name: string };
-          const warnings = await importDefinition(definition, name);
-
-          invalidateExportCache();
-          figma.ui.postMessage({ type: 'import:result', data: { warnings } });
-
-          return { type: 'loaded', data: await getExport() };
-        } finally {
-          importInProgress = false;
-        }
-      });
-      break;
-
-    case 'prepare':
-      if (typeSplit[1] === 'normalize') {
-        await postNormalize(msg.data.groupName, getNormalizePrecision());
-      }
-      break;
-
-    case 'apply':
-      if (typeSplit[1] === 'normalize') {
-        const precision = getNormalizePrecision();
-
-        try {
-          await applyNormalize(msg.data.groupName, precision);
-        } catch (e: any) {
-          figma.ui.postMessage({
-            type: 'normalize:error',
-            data: { groupName: msg.data.groupName, message: e.message },
-          });
-
-          break;
-        }
-
-        await postNormalize(msg.data.groupName, precision);
-      }
-      break;
-
-    case 'progress':
-      // The window has painted a progress update.
-      acknowledgeProgress(msg.data?.step);
-      break;
-
-    case 'reveal':
-      if (typeSplit[1] === 'instances') {
-        const ids: string[] = msg.data?.ids ?? [];
-        const resolved = await Promise.all(ids.map((id) => figma.getNodeByIdAsync(id)));
-        const nodes = resolved.filter((n): n is SceneNode => !!n && n.type !== 'PAGE' && n.type !== 'DOCUMENT');
-
-        if (nodes.length === 0) {
-          break;
-        }
-
-        const targetPage = findOwnerPage(nodes[0]);
-
-        if (!targetPage) {
-          break;
-        }
-
-        if (figma.currentPage !== targetPage) {
-          await figma.setCurrentPageAsync(targetPage);
-        }
-
-        const onPage = nodes.filter((n) => findOwnerPage(n) === targetPage);
-
-        figma.currentPage.selection = onPage;
-        figma.viewport.scrollAndZoomIntoView(onPage);
-      }
-      break;
+  if (mode === 'style') {
+    refreshStyle();
   }
-};
+});
+
+onEvent('ui:mode', (event) => {
+  mode = event.mode;
+  void savePrefs({ mode });
+  reportSelection();
+});
+
+onEvent('ui:resize', (event) => {
+  const size = clampWindow(event);
+
+  figma.ui.resize(size.width, size.height);
+  void savePrefs({ window: size });
+});
+
+onEvent('prefs:set', (event) => {
+  void savePrefs(event.prefs);
+});
+
+onEvent('file-settings:set', (event) => {
+  figma.root.setPluginData(FILE_SETTINGS_KEY, JSON.stringify(event.settings));
+});
+
+onEvent('progress:painted', (event) => {
+  acknowledgeProgress(event.step);
+});
+
+onEvent('style:refresh', () => {
+  refreshStyle();
+});
+
+onEvent('settings:frame:set', (event) => {
+  setFrameSettings(getFrameSelection(), event.settings);
+  invalidateExportCache();
+});
+
+onEvent('settings:component:set', (event) => {
+  setComponentGroupSettings(getFrameSelection(), event.group, event.settings);
+  invalidateExportCache();
+});
+
+onEvent('settings:color:set', (event) => {
+  setColorGroupSettings(getFrameSelection(), event.group, event.settings);
+  invalidateExportCache();
+});
+
+onRequest('export:run', async () => createExport());
+
+onRequest('import:run', async ({ definition, name, picksBySeed }) =>
+  withoutSelectionEvents(async () => {
+    const warnings = await importDefinition(definition as DefinitionFile, name, picksBySeed);
+
+    invalidateExportCache();
+
+    return { warnings };
+  }),
+);
+
+onRequest('import:check', async () => ({ blocked: await describeImportBlock() }));
+
+onRequest('normalize:prepare', async ({ group }) => prepareNormalize(group, getNormalizePrecision()));
+
+onRequest('normalize:apply', async ({ group }) => {
+  const precision = getNormalizePrecision();
+
+  await applyNormalize(group, precision);
+
+  return prepareNormalize(group, precision);
+});
+
+onRequest('reveal:instances', async ({ ids }) => {
+  const resolved = await Promise.all(ids.map((id) => figma.getNodeByIdAsync(id)));
+  const nodes = resolved.filter((n): n is SceneNode => !!n && n.type !== 'PAGE' && n.type !== 'DOCUMENT');
+  const targetPage = nodes.length > 0 ? findOwnerPage(nodes[0]) : null;
+
+  if (!targetPage) {
+    return {};
+  }
+
+  if (figma.currentPage !== targetPage) {
+    await figma.setCurrentPageAsync(targetPage);
+  }
+
+  const onPage = nodes.filter((n) => findOwnerPage(n) === targetPage);
+
+  figma.currentPage.selection = onPage;
+  figma.viewport.scrollAndZoomIntoView(onPage);
+
+  return {};
+});
+
+onRequest('storage:get', async ({ key }) => ({ value: await figma.clientStorage.getAsync(key) }));
+
+onRequest('storage:set', async ({ key, value }) => {
+  await figma.clientStorage.setAsync(key, value);
+
+  return {};
+});
+
+onRequest('storage:delete', async ({ key }) => {
+  await figma.clientStorage.deleteAsync(key);
+
+  return {};
+});
+
+onRequest('storage:keys', async () => ({ keys: await figma.clientStorage.keysAsync() }));
+
+// A job holds selection events from `begin` to `end`, across its chunks.
+let releaseJob: (() => void) | null = null;
+
+onRequest('generate:begin', async (params) => {
+  releaseJob?.();
+  releaseJob = suppressSelectionEvents();
+  beginJob(params);
+
+  return {};
+});
+
+onRequest('generate:chunk', async (params) => runChunk(params));
+
+onRequest('generate:end', async (params) => {
+  try {
+    return endJob(params);
+  } finally {
+    // The job selected what it made, which the release reports.
+    noteSelectionChange();
+    releaseJob?.();
+    releaseJob = null;
+  }
+});
+
+installBridge();

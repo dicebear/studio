@@ -29,12 +29,6 @@ function sortRange(r: DefinitionRange): DefinitionRange {
   return r.step === undefined ? { min, max } : { min, max, step: r.step };
 }
 
-export function isRangeEmpty(v: unknown): boolean {
-  const n = normalizeRange(v);
-
-  return n === null || (n.min === 0 && n.max === 0);
-}
-
 // Returns undefined when the range collapses to `neutral` — a no-op transform
 // the schema treats as absent.
 function toDefinitionRange(v: RangeValue, neutral: number): DefinitionRange | undefined {
@@ -53,28 +47,4 @@ export function toRangeObject(v: RangeValue): DefinitionRange | undefined {
 
 export function toScaleObject(v: RangeValue): DefinitionRange | undefined {
   return toDefinitionRange(v, 1);
-}
-
-export type RangeSchemaBounds = {
-  minimum: number;
-  maximum: number;
-  default: number[];
-};
-
-export function rangeSchemaBounds(v: RangeValue): RangeSchemaBounds | null {
-  const n = normalizeRange(v);
-
-  if (n === null || (n.min === 0 && n.max === 0)) {
-    return null;
-  }
-
-  const { min, max } = sortRange(n);
-
-  // Step (if any) intentionally not propagated — the schema describes
-  // user-facing per-component overrides, which are continuous.
-  return {
-    minimum: min,
-    maximum: max,
-    default: [min, max],
-  };
 }

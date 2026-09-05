@@ -1,4 +1,5 @@
-import { tick } from './tick';
+import { postEvent } from '../bridge';
+import { tick } from '@shared/tick';
 
 /** How long a step waits for the window to confirm the paint before moving on. */
 const PAINT_TIMEOUT_MS = 150;
@@ -57,7 +58,7 @@ export function resetProgress(): void {
 export async function postProgress(message: string, progress?: number): Promise<void> {
   const step = ++lastStep;
 
-  figma.ui.postMessage({ type: 'loading', data: { message, progress, step } });
+  postEvent({ type: 'progress', message, progress, step });
 
   if (progress === undefined || !windowAnswers || Date.now() - lastPaint < PAINT_INTERVAL_MS) {
     await tick();

@@ -5,7 +5,15 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,
-    "types": ["node"]
+    "resolveJsonModule": true,
+    "types": [
+      "node"
+    ],
+    "noEmit": true
   },
-  "include": ["vite.config.ts", "vite.config.code.ts"]
+  "include": [
+    "vite.config.ts",
+    "vite.config.code.ts",
+    "vitest.config.ts"
+  ]
 }

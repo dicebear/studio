@@ -1,34 +1,38 @@
+import { errorMessage } from '@shared/errors';
+import { postEvent } from '../bridge';
+import { getExport } from '../export/exportCache';
 import { NoFrameSelectedError } from './getFrameSelection';
 import { resetProgress } from './postProgress';
 
-/**
- * `welcomeOnNoFrame` belongs to the tasks that only mirror the current
- * selection. A task the user asked for, such as an export, has to report its
- * failure instead of quietly showing the welcome scene.
- */
-export function processTask(cb: () => Promise<{ type: string; data: any }>, welcomeOnNoFrame = false) {
-  resetProgress();
-  figma.ui.postMessage({
-    type: 'loading',
-    data: {},
-  });
+let pending: ReturnType<typeof setTimeout> | null = null;
 
-  setTimeout(async () => {
+/**
+ * Reads the style around the current selection and tells the window what it
+ * found: the export data, nothing usable (the welcome state), or an error.
+ * A refresh that follows another within the delay replaces it, so a burst of
+ * selection changes reads the frame once.
+ */
+export function refreshStyle(): void {
+  resetProgress();
+  postEvent({ type: 'style:loading' });
+
+  if (pending !== null) {
+    clearTimeout(pending);
+  }
+
+  pending = setTimeout(async () => {
+    pending = null;
+
     try {
-      figma.ui.postMessage(await cb());
-    } catch (e: any) {
-      if (welcomeOnNoFrame && e instanceof NoFrameSelectedError) {
-        figma.ui.postMessage({ type: 'welcome' });
+      postEvent({ type: 'style:loaded', data: await getExport() });
+    } catch (e) {
+      if (e instanceof NoFrameSelectedError) {
+        postEvent({ type: 'style:none' });
 
         return;
       }
 
-      figma.ui.postMessage({
-        type: 'error',
-        data: {
-          message: e.message,
-        },
-      });
+      postEvent({ type: 'style:error', message: errorMessage(e) });
     }
   }, 250);
 }

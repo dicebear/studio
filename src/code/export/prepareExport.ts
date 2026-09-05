@@ -10,7 +10,6 @@ import { getColorsByNode } from '../utils/getColorsByNode';
 import { getNameParts } from '../utils/getNameParts';
 import { isSupportedComponent } from '../utils/isSupportedComponent';
 import { resolveComponentName } from '../utils/resolveComponentName';
-import { useDefinitionFile } from '../utils/useDefinitionFile';
 
 export async function prepareExport(frameSelection: FrameNode): Promise<Export> {
   await figma.loadAllPagesAsync();
@@ -30,8 +29,6 @@ export async function prepareExport(frameSelection: FrameNode): Promise<Export> 
     components: {},
     colors: {},
   };
-
-  const aliasesEnabled = useDefinitionFile(exportData.frame.settings.dicebearVersion);
 
   for (const [colorGroupName, colorGroup] of colorGroups) {
     const exportColorGroup: ExportColorGroup = (exportData.colors[colorGroupName] = {
@@ -69,7 +66,7 @@ export async function prepareExport(frameSelection: FrameNode): Promise<Export> 
   let item: ChildrenMixin | undefined;
 
   while ((item = pending.pop())) {
-    await scanItem(item, exportData, frameSelection, componentGroups, aliasesEnabled, visitedGroups, pending);
+    await scanItem(item, exportData, frameSelection, componentGroups, visitedGroups, pending);
   }
 
   return exportData;
@@ -80,7 +77,6 @@ async function scanItem(
   exportData: Export,
   frame: FrameNode,
   componentGroups: ComponentGroupsMap,
-  aliasesEnabled: boolean,
   visitedGroups: Set<string>,
   pending: ChildrenMixin[],
 ): Promise<void> {
@@ -126,7 +122,7 @@ async function scanItem(
     }
 
     const instance = instances[i];
-    const resolved = resolveComponentName(instance, mainComponent, aliasesEnabled);
+    const resolved = resolveComponentName(instance, mainComponent);
 
     ensureMasterGroupRegistered(exportData, frame, componentGroups, resolved.masterGroup, visitedGroups, pending);
 

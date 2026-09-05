@@ -1,0 +1,62 @@
+/*
+ * Fallback values for Figma's theme variables. Figma injects the real
+ * --figma-color-* variables into the plugin iframe, these keep the window
+ * legible when it is opened outside Figma.
+ */
+:root {
+  --figma-color-bg: #ffffff;
+  --figma-color-bg-hover: #f5f5f5;
+  --figma-color-bg-secondary: #f0f0f0;
+  --figma-color-bg-disabled: #f5f5f5;
+  --figma-color-bg-selected: #e5f4ff;
+  --figma-color-bg-brand: #0d99ff;
+  --figma-color-bg-brand-tertiary: #e5f4ff;
+  --figma-color-bg-danger: #f24822;
+  --figma-color-bg-danger-tertiary: #ffe2e0;
+  --figma-color-bg-warning-tertiary: #fff1c2;
+  --figma-color-text: #000000;
+  --figma-color-text-secondary: #6d6d6d;
+  --figma-color-text-tertiary: #b3b3b3;
+  --figma-color-text-brand: #007be5;
+  --figma-color-text-onbrand: #ffffff;
+  --figma-color-text-danger: #dc3412;
+  --figma-color-text-ondanger: #ffffff;
+  --figma-color-text-warning: #a35d00;
+  --figma-color-icon: #000000;
+  --figma-color-icon-secondary: #6d6d6d;
+  --figma-color-border: #e6e6e6;
+  --figma-color-border-strong: #b3b3b3;
+  --figma-color-border-selected: #0d99ff;
+  --figma-color-border-brand-strong: #0d99ff;
+  --figma-color-border-danger: #f24822;
+  --figma-color-border-warning: #ffcd29;
+}
+
+.figma-dark {
+  --figma-color-bg: #2c2c2c;
+  --figma-color-bg-hover: #383838;
+  --figma-color-bg-secondary: #383838;
+  --figma-color-bg-disabled: #3a3a3a;
+  --figma-color-bg-selected: #394360;
+  --figma-color-bg-brand: #0c8ce9;
+  --figma-color-bg-brand-tertiary: #394360;
+  --figma-color-bg-danger: #e03e1a;
+  --figma-color-bg-danger-tertiary: #5a2a2a;
+  --figma-color-bg-warning-tertiary: #4f4224;
+  --figma-color-text: #ffffff;
+  --figma-color-text-secondary: #b3b3b3;
+  --figma-color-text-tertiary: #7f7f7f;
+  --figma-color-text-brand: #7cc4f8;
+  --figma-color-text-onbrand: #ffffff;
+  --figma-color-text-danger: #fca397;
+  --figma-color-text-ondanger: #ffffff;
+  --figma-color-text-warning: #ffd966;
+  --figma-color-icon: #ffffff;
+  --figma-color-icon-secondary: #b3b3b3;
+  --figma-color-border: #444444;
+  --figma-color-border-strong: #5c5c5c;
+  --figma-color-border-selected: #0c8ce9;
+  --figma-color-border-brand-strong: #0c8ce9;
+  --figma-color-border-danger: #e03e1a;
+  --figma-color-border-warning: #ffcd29;
+}

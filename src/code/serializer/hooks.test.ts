@@ -68,7 +68,6 @@ function instanceOf(main: ComponentNode, props: Record<string, unknown> = {}) {
 }
 
 type SvgOptions = {
-  animationsEnabled?: boolean;
   styles?: Record<string, unknown>;
   warn?: (message: string) => void;
 };
@@ -76,8 +75,6 @@ type SvgOptions = {
 async function svg(children: SceneNode[], options: SvgOptions = {}): Promise<string> {
   const root = layer('FRAME', { children, fillGeometry: [], clipsContent: false }) as SceneNode & ChildrenMixin;
   const hooks = createDicebearHooks({
-    aliasesEnabled: true,
-    animationsEnabled: options.animationsEnabled ?? false,
     styles: async (id) => (options.styles?.[id] ?? null) as BaseStyle | null,
   });
   const tree = await serializeTree(root, { host: { mixed: MIXED }, hooks, clipFrames: false, warn: options.warn });
@@ -149,7 +146,7 @@ describe('createDicebearHooks', () => {
       fills: [{ type: 'SOLID', color: { r: 0, g: 0, b: 0 } }],
       manualKeyframeTracks: opacityTrack(0.5, 1),
     });
-    const out = await svg([rect], { animationsEnabled: true });
+    const out = await svg([rect]);
 
     expect(out.match(/opacity="/g)).toHaveLength(1);
     expect(out).toContain('<g data-dbanim="0:');
@@ -165,7 +162,7 @@ describe('createDicebearHooks', () => {
       manualKeyframeTracks: opacityTrack(1, 0),
     });
     const above = layer('RECTANGLE', { fills: [{ type: 'SOLID', color: { r: 1, g: 0, b: 0 } }] });
-    const out = await svg([mask, above], { animationsEnabled: true, warn: (m) => warnings.push(m) });
+    const out = await svg([mask, above], { warn: (m) => warnings.push(m) });
 
     expect(out).not.toContain('data-dbanim');
     expect(warnings).toEqual([

@@ -1,25 +1,24 @@
 import { fileURLToPath, URL } from 'node:url';
 
-import { defineConfig } from 'vite';
-import vue from '@vitejs/plugin-vue';
-import Components from 'unplugin-vue-components/vite';
-import { PrimeVueResolver } from '@primevue/auto-import-resolver';
+import { defineConfig, type PluginOption } from 'vite';
+import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 import { viteSingleFile } from 'vite-plugin-singlefile';
+import { visualizer } from 'rollup-plugin-visualizer';
 
 const isWatch = process.argv.includes('--watch');
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [
-    vue(),
-    Components({
-      resolvers: [PrimeVueResolver()],
-      dts: 'components.d.ts',
-    }),
+    react(),
+    tailwindcss(),
     viteSingleFile(),
+    mode === 'analyze' && (visualizer({ filename: 'dist/stats.html', gzipSize: true }) as PluginOption),
   ],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src/ui', import.meta.url)),
+      '@shared': fileURLToPath(new URL('./src/shared', import.meta.url)),
     },
   },
   build: {
@@ -28,5 +27,6 @@ export default defineConfig({
     cssCodeSplit: false,
     assetsInlineLimit: 100_000_000,
     chunkSizeWarningLimit: 10_000,
+    target: 'es2022',
   },
-});
+}));

@@ -1,13 +1,11 @@
 import { serializeToSvg } from '../figma-svg';
-import { tick } from '../utils/tick';
+import { tick } from '@shared/tick';
 import { createDicebearHooks } from './hooks';
 import { createStyleCache } from './referenceColor';
 import { hasAnimationTracks } from './nodeAnimation';
 import { isMotionAvailable } from '../utils/motionSupport';
 
 export type SerializeOptions = {
-  aliasesEnabled: boolean;
-  animationsEnabled: boolean;
   warn: (message: string) => void;
 };
 
@@ -31,16 +29,12 @@ export type NodeSerializer = (root: FrameNode | ComponentNode) => Promise<string
  */
 export function createSerializer(options: SerializeOptions): NodeSerializer {
   const styles = createStyleCache((id) => figma.getStyleByIdAsync(id));
-  const hooks = createDicebearHooks({
-    aliasesEnabled: options.aliasesEnabled,
-    animationsEnabled: options.animationsEnabled,
-    styles,
-  });
+  const hooks = createDicebearHooks({ styles });
 
   return (root) => {
     // The root is exported by its contents, and the definition has no place
     // for an animation on the avatar or a component itself.
-    if (options.animationsEnabled && isMotionAvailable(root) && hasAnimationTracks(root)) {
+    if (isMotionAvailable(root) && hasAnimationTracks(root)) {
       options.warn(
         `The animation on "${root.name}" itself was not exported. Only the layers inside a component or the avatar frame can carry one.`,
       );

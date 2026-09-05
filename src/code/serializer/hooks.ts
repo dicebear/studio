@@ -26,8 +26,6 @@ import {
  */
 
 export type DicebearHookOptions = {
-  aliasesEnabled: boolean;
-  animationsEnabled: boolean;
   /** Resolves style ids, cached so each one crosses the plugin bridge once. */
   styles: StyleLookup;
 };
@@ -36,7 +34,6 @@ export function createDicebearHooks(options: DicebearHookOptions): SerializeHook
   const styleGroup = createStyleGroupResolver(options.styles);
   const usesCurrentColor = createCurrentColorProbe(styleGroup);
   let animKey = 0;
-  let warnedStaticAnimations = false;
 
   /** The bound style, or null when it is not one this export understands. */
   const paintStyle = async (id: string): Promise<PaintStyle | null> => {
@@ -69,7 +66,7 @@ export function createDicebearHooks(options: DicebearHookOptions): SerializeHook
         return undefined;
       }
 
-      const componentGroup = resolveComponentName(node, mainComponent, options.aliasesEnabled).componentName;
+      const componentGroup = resolveComponentName(node, mainComponent).componentName;
       const scale = { x: node.width / mainComponent.width, y: node.height / mainComponent.height };
       const attributes: Record<string, string> = {};
 
@@ -128,21 +125,9 @@ export function createDicebearHooks(options: DicebearHookOptions): SerializeHook
       // Mask content sits below `defs`, where the schema allows no animation:
       // the renderer's carrier group would never reach the mask.
       if (asMask) {
-        if (options.animationsEnabled && hasAnimationTracks(node)) {
+        if (hasAnimationTracks(node)) {
           ctx.warn(
             `The mask "${node.name}" has an animation, but a mask cannot animate in a definition. It was exported static.`,
-          );
-        }
-
-        return elements;
-      }
-
-      if (!options.animationsEnabled) {
-        if (!warnedStaticAnimations && options.aliasesEnabled && hasAnimationTracks(node)) {
-          warnedStaticAnimations = true;
-          ctx.warn(
-            'DiceBear 10.x renders every avatar static, so the animations were left out of the export. ' +
-              'Select DiceBear 11.x in the General tab to include them.',
           );
         }
 

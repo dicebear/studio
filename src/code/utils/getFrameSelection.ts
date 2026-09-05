@@ -1,3 +1,5 @@
+import { findStyleFrame } from '../selection/findStyleFrame';
+
 /**
  * Thrown when nothing usable is selected. The UI shows the welcome scene for
  * this case instead of an error.
@@ -9,18 +11,12 @@ export class NoFrameSelectedError extends Error {
   }
 }
 
-export function getFrameSelection() {
-  const { selection } = figma.currentPage;
+export function getFrameSelection(): FrameNode {
+  const frame = findStyleFrame();
 
-  let current: BaseNode | null = selection.length === 1 ? selection[0] : null;
-
-  while (current && current.type !== 'FRAME') {
-    current = current.parent;
-  }
-
-  if (!current || current.type !== 'FRAME' || current.width !== current.height) {
+  if (frame === null) {
     throw new NoFrameSelectedError();
   }
 
-  return current;
+  return frame;
 }

@@ -1,0 +1,143 @@
+@import 'tailwindcss';
+@import './figma-vars.css';
+
+@custom-variant dark (&:where(.figma-dark, .figma-dark *));
+
+/*
+ * The state variants the shadcn/ui components are written against. Radix
+ * reports state as `data-state="open"` and orientation as
+ * `data-orientation`, which Tailwind's plain `data-*` variants do not read.
+ */
+@custom-variant data-open {
+  &:where([data-state='open']),
+  &:where([data-open]:not([data-open='false'])) {
+    @slot;
+  }
+}
+
+@custom-variant data-closed {
+  &:where([data-state='closed']),
+  &:where([data-closed]:not([data-closed='false'])) {
+    @slot;
+  }
+}
+
+@custom-variant data-checked {
+  &:where([data-state='checked']),
+  &:where([data-checked]:not([data-checked='false'])) {
+    @slot;
+  }
+}
+
+@custom-variant data-unchecked {
+  &:where([data-state='unchecked']),
+  &:where([data-unchecked]:not([data-unchecked='false'])) {
+    @slot;
+  }
+}
+
+@custom-variant data-selected {
+  &:where([data-selected='true']) {
+    @slot;
+  }
+}
+
+@custom-variant data-disabled {
+  &:where([data-disabled='true']),
+  &:where([data-disabled]:not([data-disabled='false'])) {
+    @slot;
+  }
+}
+
+@custom-variant data-active {
+  &:where([data-state='active']),
+  &:where([data-active]:not([data-active='false'])) {
+    @slot;
+  }
+}
+
+@custom-variant data-horizontal {
+  &:where([data-orientation='horizontal']) {
+    @slot;
+  }
+}
+
+@custom-variant data-vertical {
+  &:where([data-orientation='vertical']) {
+    @slot;
+  }
+}
+
+/*
+ * shadcn tokens mapped onto Figma's theme variables. Figma injects the real
+ * values for light and dark, so there is no second token set for dark mode.
+ */
+@theme inline {
+  --font-sans: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  --text-xs: 11px;
+  --text-xs--line-height: 16px;
+  --text-sm: 11px;
+  --text-sm--line-height: 16px;
+  --text-base: 11px;
+  --text-base--line-height: 16px;
+  --text-lg: 12px;
+  --text-lg--line-height: 18px;
+  --text-xl: 13px;
+  --text-xl--line-height: 20px;
+
+  --radius: 4px;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 8px;
+
+  --color-background: var(--figma-color-bg);
+  --color-foreground: var(--figma-color-text);
+  --color-muted: var(--figma-color-bg-secondary);
+  --color-muted-foreground: var(--figma-color-text-secondary);
+  --color-card: var(--figma-color-bg);
+  --color-card-foreground: var(--figma-color-text);
+  --color-popover: var(--figma-color-bg);
+  --color-popover-foreground: var(--figma-color-text);
+  --color-primary: var(--figma-color-bg-brand);
+  --color-primary-foreground: var(--figma-color-text-onbrand);
+  --color-secondary: var(--figma-color-bg-secondary);
+  --color-secondary-foreground: var(--figma-color-text);
+  --color-accent: var(--figma-color-bg-hover);
+  --color-accent-foreground: var(--figma-color-text);
+  --color-destructive: var(--figma-color-bg-danger);
+  --color-destructive-foreground: var(--figma-color-text-ondanger);
+  --color-border: var(--figma-color-border);
+  --color-input: var(--figma-color-border);
+  --color-ring: var(--figma-color-border-selected);
+
+  --color-selected: var(--figma-color-bg-selected);
+  --color-selected-foreground: var(--figma-color-text);
+  --color-brand: var(--figma-color-bg-brand);
+  --color-brand-foreground: var(--figma-color-text-brand);
+  --color-warning: var(--figma-color-bg-warning-tertiary);
+  --color-warning-foreground: var(--figma-color-text-warning);
+  --color-danger: var(--figma-color-bg-danger-tertiary);
+  --color-danger-foreground: var(--figma-color-text-danger);
+  --color-danger-border: var(--figma-color-border-danger);
+  --color-warning-border: var(--figma-color-border-warning);
+  --color-icon: var(--figma-color-icon);
+  --color-icon-secondary: var(--figma-color-icon-secondary);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground overflow-hidden text-xs antialiased;
+  }
+}

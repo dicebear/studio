@@ -5,8 +5,13 @@
   "main": "code.js",
   "ui": "index.html",
   "editorType": ["figma"],
+  "documentAccess": "dynamic-page",
   "networkAccess": {
-    "allowedDomains": ["none"]
+    "allowedDomains": ["https://api.dicebear.com"],
+    "reasoning": "Loads the DiceBear style collection and its previews when you generate avatars."
   },
-  "documentAccess": "dynamic-page"
+  "relaunchButtons": [
+    { "command": "regenerate", "name": "Regenerate avatars", "multipleSelection": true },
+    { "command": "restyle", "name": "Change avatar style", "multipleSelection": true }
+  ]
 }

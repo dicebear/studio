@@ -39,7 +39,9 @@ The plugin then shows up under **Plugins → Development → DiceBear Studio**.
 | -------------------- | -------------------------------------------------------------------------- |
 | `npm run dev`        | Rebuilds the UI (`dist/index.html`) and sandbox (`dist/code.js`) on change |
 | `npm run build`      | Type-checks, then builds UI and sandbox for production                     |
-| `npm run type-check` | Runs `vue-tsc --noEmit`                                                    |
+| `npm run type-check` | Runs `tsc -b` over the UI, sandbox and config projects                     |
+| `npm test`           | Runs the unit tests with Vitest                                            |
+| `npm run analyze`    | Builds the UI with a bundle report in `dist/stats.html`                    |
 
 While `npm run dev` is running, re-run the plugin in Figma after each change (right-click the plugin → **Run**) to pick
 up the latest build.
@@ -48,48 +50,43 @@ up the latest build.
 
 ```
 src/
+├── shared/      # Types and pure logic both sides import, no DOM and no `figma` global
+│   ├── messages.ts   # The request/event contract between window and sandbox
+│   └── storage/      # Definition cache and library over a key-value store
 ├── code/        # Figma sandbox script (has access to the Figma API)
-│   ├── export/     # Builds the exported files or definition
-│   ├── import/     # Rebuilds a definition file as Figma pages
-│   ├── queries/    # Walks the Figma node tree
-│   ├── settings/   # Reads/writes plugin data on the frame
-│   ├── templates/  # Handlebars templates for the 9.x package export
+│   ├── bridge.ts     # Routes the window's requests and events to handlers
+│   ├── export/       # Builds the exported definition
+│   ├── generate/     # Fills layers and inserts avatars
+│   ├── import/       # Rebuilds a definition file as Figma pages
+│   ├── selection/    # Describes the selection for the window
+│   ├── settings/     # Reads/writes plugin data on the frame
 │   └── utils/
-├── ui/          # Vue 3 UI shown in the Figma plugin window
-│   ├── components/
-│   ├── stores/     # Pinia stores
-│   └── styles/
-└── env.d.ts
+└── ui/          # React app shown in the Figma plugin window
+    ├── components/   # Shared components, `ui/` holds the shadcn/ui sources
+    ├── features/     # One folder per tab: generate, style
+    ├── lib/          # Bridge, API client, catalog cache, rendering
+    └── store/        # zustand stores
 public/manifest.json  # Figma plugin manifest
 ```
 
 The plugin has two entry points, each built by Vite into `dist/`:
 
-- **UI** (`src/ui/`): a Vue 3 app (`index.html` → `dist/index.html`) that runs in the plugin's iframe. It uses PrimeVue
-  for controls and Pinia for state.
+- **UI** (`src/ui/`): a React app (`index.html` → `dist/index.html`) that runs in the plugin's iframe. Controls are
+  [shadcn/ui](https://ui.shadcn.com) components on Radix primitives, styled with Tailwind CSS and mapped onto Figma's
+  theme variables so the window follows the light and dark theme. State lives in zustand stores. Avatars are rendered
+  here with `@dicebear/core`, as SVG for previews and inserts, rasterised to PNG for image fills.
 - **Sandbox** (`src/code/`): the Figma plugin script (`src/code/index.ts` → `dist/code.js`) with access to the Figma
-  API.
+  API. It never parses a definition, it applies what the window sends.
 
-The two sides exchange typed messages:
+The two sides exchange the messages declared in `src/shared/messages.ts`. A request carries a `requestId` and gets one
+reply, an event is fire and forget. Both bundles compile against that file, so a message can only be sent in the shape
+the other side reads. The window uses `request()` and `postEvent()` from `src/ui/lib/bridge.ts`, the sandbox registers
+handlers with `onRequest()` and `onEvent()` from `src/code/bridge.ts`.
 
-- UI → sandbox: `parent.postMessage({ pluginMessage: … })` wrapped by `src/ui/utils/postPluginMessage.ts`.
-- Sandbox → UI: `figma.ui.postMessage(…)` wrapped by `src/code/utils/processTask.ts`.
-
-Settings that belong to a frame (title, license, DiceBear version, per-component probability, per-color-group
-constraints, etc.) are persisted with `node.setPluginData` / `node.getPluginData` in `src/code/settings/`.
-
-## Export formats
-
-There are two output paths, selected by [`useDefinitionFile`](./src/code/utils/useDefinitionFile.ts) based on the
-DiceBear version chosen in the plugin:
-
-- **10.x**: a single JSON definition produced by `src/code/export/createExportDefinition.ts`. It follows the
-  [style definition schema](https://www.dicebear.com/create-styles/definition-schema/).
-- **9.x**: a zip of Handlebars-rendered package files (sources, tests, `package.json`, README, license) produced by
-  `src/code/export/createExportFiles.ts` from templates in `src/code/templates/`.
-
-If you change one of these formats, touch the other path too wherever the change applies, and update the templates or
-tests that depend on it.
+Settings that belong to a frame (title, license, per-component probability, per-color-group constraints, etc.) are
+persisted with `node.setPluginData` / `node.getPluginData` in `src/code/settings/`. Preferences (window size, last tab
+and style), the definition cache and the library live in `figma.clientStorage`, which the window reaches through the
+`storage:*` requests.
 
 ## Before you open a pull request
 
@@ -97,22 +94,28 @@ Run:
 
 ```sh
 npm run type-check
+npm test
 npm run build
 ```
 
-Then smoke-test the change in the Figma desktop app against a real frame. The basics to check:
+Then smoke-test the change in the Figma desktop app. The basics to check:
 
-- Selecting a frame still triggers `prepareExport` and the UI renders the settings without errors.
-- A setting you changed survives closing and reopening the plugin (it should go through `setFrameSettings`,
-  `setComponentGroupSettings`, or `setColorGroupSettings`).
-- If your change touches export code, run both the 10.x JSON export and the 9.x zip export and verify the output.
+- Generate: fill a rectangle, an ellipse with a corner radius and a frame; the shapes keep their form and get an image
+  fill. A locked layer is skipped and named. Insert a dozen avatars with and without a selection. One Cmd+Z reverts the
+  whole batch. The relaunch buttons on a generated layer draw new seeds or open the picker.
+- Style: selecting a frame renders the settings without errors. A setting you changed survives closing and reopening the
+  plugin. If your change touches export code, export a definition and diff it against one from the previous build.
+  Import a definition into an empty file and check the thumbnail page. Upload the exported definition to the library in
+  the Generate tab and render with it.
+- Offline: an uncached style shows an error with a retry, a cached one still renders.
 
 ## Code style
 
 - Prettier handles formatting (see `.prettierrc`): 120 columns, single quotes, prose wrap.
 - Indentation is two spaces (see `.editorconfig`).
-- TypeScript everywhere; Vue SFCs use `<script setup lang="ts">`.
-- Do not import from the DOM or from Vue inside `src/code/`. That code runs in Figma's QuickJS sandbox, not a browser.
+- TypeScript everywhere.
+- Do not import from the DOM or from React inside `src/code/` or `src/shared/`. The sandbox runs in Figma's QuickJS
+  sandbox, not a browser, and the shared code compiles under both projects.
 
 ## Licensing
 

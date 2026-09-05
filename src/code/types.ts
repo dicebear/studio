@@ -1,79 +1,19 @@
-export type FrameSettings = {
-  dicebearVersion: string;
-  title: string;
-  packageName: string;
-  packageVersion: string;
-  creator: string;
-  homepage: string;
-  sourceTitle: string;
-  source: string;
-  licenseName: string;
-  licenseUrl: string;
-  licenseText: string;
-  backgroundColorGroupName: string;
-  shapeRendering: string;
-  onPreCreateHook: string;
-  onPostCreateHook: string;
-  precision: number;
-  fileShareUrl: string;
-};
+export type {
+  ColorGroupSettings,
+  ComponentGroupSettings,
+  DefinitionRange,
+  ExportColor,
+  ExportColorGroup,
+  ExportComponent,
+  ExportComponentGroup,
+  FrameSettings,
+  NormalizeData,
+  NormalizeVariant,
+  RangeValue,
+} from '@shared/types';
+export type { ExportData as Export } from '@shared/types';
 
-export type DefinitionRange = { min: number; max: number; step?: number };
-
-export type RangeValue = DefinitionRange | null;
-
-export type ComponentGroupSettings = {
-  defaults: Record<string, boolean>;
-  weights: Record<string, number>;
-  tags: Record<string, string[]>;
-  probability: number | null;
-  rotation: RangeValue;
-  scale: RangeValue;
-  translateX: RangeValue;
-  translateY: RangeValue;
-};
-
-export type ColorGroupSettings = {
-  notEqualTo: Record<string, boolean>;
-  contrastTo: string | null;
-};
-
-export type ExportComponent = {
-  id: string;
-  name: string;
-};
-
-export type ExportColor = {
-  id: string;
-  name: string;
-  value: string;
-};
-
-export type ExportComponentGroup = {
-  settings: ComponentGroupSettings;
-  collection: Record<string, ExportComponent>;
-  width: number;
-  height: number;
-  /** When set, this entry is an alias and inherits collection/dimensions from the named group. */
-  extendsGroup?: string;
-  /** When set, the Figma node ids of the renamed instances that triggered this alias. */
-  aliasInstanceIds?: string[];
-};
-
-export type ExportColorGroup = {
-  settings: ColorGroupSettings;
-  isUsedByComponents: boolean;
-  collection: Record<string, ExportColor>;
-};
-
-export type Export = {
-  frame: {
-    id: string;
-    settings: FrameSettings;
-  };
-  components: Record<string, ExportComponentGroup>;
-  colors: Record<string, ExportColorGroup>;
-};
+import type { DefinitionRange } from '@shared/types';
 
 export type DefinitionElement = {
   type: string;

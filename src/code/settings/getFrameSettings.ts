@@ -1,46 +1,38 @@
 import { FrameSettings } from '../types';
-import { useDefinitionFile } from '../utils/useDefinitionFile';
 
+const DEFAULTS: FrameSettings = {
+  title: '',
+  creator: '',
+  homepage: '',
+  sourceTitle: '',
+  source: '',
+  licenseName: 'CC BY 4.0',
+  licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
+  licenseText: '',
+  shapeRendering: 'auto',
+  backgroundColorGroupName: '',
+  precision: 3,
+};
+
+/**
+ * The settings stored on the avatar frame. Only the known keys are read, so a
+ * file written by an older plugin version drops what it no longer needs, such
+ * as the DiceBear version or the npm package fields, on the next write.
+ */
 export function getFrameSettings(frame: FrameNode, colorGroups: string[]): FrameSettings {
-  const titlePlaceholder = 'My Avatar Style';
+  const stored = JSON.parse(frame.getPluginData(`settings`) || '{}') as Partial<Record<keyof FrameSettings, unknown>>;
+  const data: FrameSettings = { ...DEFAULTS };
 
-  const data: FrameSettings = {
-    dicebearVersion: '11.x',
-    packageName: '',
-    packageVersion: '',
-    title: '',
-    creator: '',
-    homepage: '',
-    sourceTitle: '',
-    source: '',
-    licenseName: 'CC BY 4.0',
-    licenseUrl: 'https://creativecommons.org/licenses/by/4.0/',
-    licenseText: '',
-    shapeRendering: 'auto',
-    backgroundColorGroupName: '',
-    onPreCreateHook: '',
-    onPostCreateHook: '',
-    precision: 3,
-    fileShareUrl: '',
-    ...JSON.parse(frame.getPluginData(`settings`) || '{}'),
-  };
+  for (const key of Object.keys(DEFAULTS) as (keyof FrameSettings)[]) {
+    const value = stored[key];
 
-  if (!data.title) {
-    data.title = titlePlaceholder;
+    if (typeof value === typeof DEFAULTS[key]) {
+      (data as Record<keyof FrameSettings, unknown>)[key] = value;
+    }
   }
 
-  if (!useDefinitionFile(data.dicebearVersion)) {
-    if (!data.sourceTitle || data.sourceTitle === titlePlaceholder) {
-      data.sourceTitle = data.title;
-    }
-
-    if (!data.packageName) {
-      data.packageName = '@dicebear/my-avatar-style';
-    }
-
-    if (!data.packageVersion) {
-      data.packageVersion = '1.0.0';
-    }
+  if (!data.title) {
+    data.title = 'My Avatar Style';
   }
 
   if (false === colorGroups.includes(data.backgroundColorGroupName)) {
