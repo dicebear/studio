@@ -2,7 +2,6 @@ import { useEffect } from 'react';
 import { installBridge, postEvent } from '@/lib/bridge';
 import { handlePluginEvent } from '@/lib/messageHandler';
 import { persistGenerateSettings } from '@/lib/persistGenerate';
-import { useAppStore } from '@/store';
 
 /** Connects the window to the sandbox for the lifetime of the app. */
 export function usePluginBridge(): void {
@@ -10,7 +9,7 @@ export function usePluginBridge(): void {
     const uninstall = installBridge(handlePluginEvent);
     const stopPersisting = persistGenerateSettings();
 
-    postEvent({ type: 'ui:ready', mode: useAppStore.getState().mode });
+    postEvent({ type: 'ui:ready' });
 
     return () => {
       uninstall();

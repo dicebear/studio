@@ -10,6 +10,9 @@ export type ApiFormat = 'svg' | 'png' | 'jpg' | 'webp';
 
 export const API_FORMATS: ApiFormat[] = ['svg', 'png', 'jpg', 'webp'];
 
+/** The largest raster image the API serves. */
+const API_MAX_RASTER_SIZE = 256;
+
 /** One option as the API reads it: lists comma separated, weights as `name:weight`. */
 function queryValue(value: unknown): string {
   if (Array.isArray(value)) {
@@ -34,7 +37,7 @@ export function apiUrl(record: AvatarRecord, format: ApiFormat): string | null {
   const params = [`seed=${encodeURIComponent(record.seed)}`];
 
   if (format !== 'svg') {
-    params.push(`size=${record.size}`);
+    params.push(`size=${Math.min(record.size, API_MAX_RASTER_SIZE)}`);
   }
 
   for (const [name, value] of Object.entries(record.overrides)) {

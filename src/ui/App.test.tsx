@@ -14,7 +14,7 @@ describe('App', () => {
 
     render(<App />);
 
-    expect(posted).toHaveBeenCalledWith({ pluginMessage: { type: 'ui:ready', mode: 'generate' } }, '*');
+    expect(posted).toHaveBeenCalledWith({ pluginMessage: { type: 'ui:ready' } }, '*');
 
     sendFromPlugin({
       type: 'plugin:init',

@@ -22,8 +22,10 @@ describe('apiUrl', () => {
     );
   });
 
-  it('adds the size for raster formats only', () => {
+  it('adds the size for raster formats only, capped at what the API serves', () => {
     expect(apiUrl(record, 'png')).toContain('/png?seed=Kai%20%C3%98&size=256&');
+    expect(apiUrl({ ...record, size: 1024 }, 'webp')).toContain('&size=256&');
+    expect(apiUrl({ ...record, size: 128 }, 'jpg')).toContain('&size=128&');
   });
 
   it('has no URL for a library style', () => {

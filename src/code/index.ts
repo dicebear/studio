@@ -43,7 +43,7 @@ figma.skipInvisibleInstanceChildren = true;
 // one as soon as the store answers.
 figma.showUI(__html__, { themeColors: true, ...DEFAULT_PREFS.window });
 
-void readPrefs().then((stored) => {
+const prefsLoaded = readPrefs().then((stored) => {
   prefs = stored;
   mode = stored.mode;
   figma.ui.resize(stored.window.width, stored.window.height);
@@ -112,8 +112,10 @@ function readFileSettings(): unknown {
   }
 }
 
-onEvent('ui:ready', (event) => {
-  mode = event.mode;
+onEvent('ui:ready', async () => {
+  // The window opens on the remembered tab, so the selection is described
+  // for that tab, not for the default one.
+  await prefsLoaded;
 
   postEvent({
     type: 'plugin:init',

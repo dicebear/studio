@@ -105,7 +105,8 @@ export type RequestMessage = {
 }[RequestType];
 
 export type UiEvent =
-  | { type: 'ui:ready'; mode: Mode }
+  /** The window is up. The sandbox answers with `plugin:init` on the remembered tab. */
+  | { type: 'ui:ready' }
   | { type: 'ui:mode'; mode: Mode }
   | { type: 'ui:resize'; width: number; height: number }
   | { type: 'prefs:set'; prefs: Partial<Prefs> }
