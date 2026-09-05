@@ -41,16 +41,16 @@ function colorMatrix(color: RgbaLike): string {
 }
 
 /**
- * The box a filter is built around. A shape's box is its layer size plus the
- * `outset` its stroke adds, and the region is written in those coordinates.
- * A container's children can lie anywhere, so without an `outset` the region
- * follows the rendered content and is written in fractions of it.
+ * The rectangle a filter is built around, in the layer's own coordinates:
+ * everything the layer paints, strokes included. The region is written in
+ * those coordinates, grown by the reach of the effects. The bounding box SVG
+ * would measure on its own misses strokes and collapses for a line.
  */
 export type FilterBox = {
+  x: number;
+  y: number;
   width: number;
   height: number;
-  /** How far a stroke reaches beyond the box. Given for shapes, not for containers. */
-  outset?: number;
 };
 
 /** The smallest extent a region gets, so a line at zero height keeps its shadow. */
@@ -61,7 +61,7 @@ const MIN_REGION = 1;
  * an SVG counterpart. The chain follows the one Figma writes: drop shadows
  * composite below the graphic, inner shadows on top of it, a layer blur over
  * the result. The filter region grows with the largest blur and offset so
- * nothing is cut off, see {@link FilterBox} for the two ways it is measured.
+ * nothing is cut off, see {@link FilterBox} for how the box is measured.
  */
 export function effectsToFilter(
   effects: ReadonlyArray<EffectLike>,
@@ -198,28 +198,11 @@ export function effectsToFilter(
 
   const attributes: Record<string, string> = { id, 'color-interpolation-filters': 'sRGB' };
 
-  if (box.outset !== undefined) {
-    // A shape's region in its own coordinates: the box, the stroke around it,
-    // and the reach of the effects. The bounding box would miss the stroke and
-    // collapse for a line.
-    const reachX = padX + box.outset;
-    const reachY = padY + box.outset;
-
-    attributes.filterUnits = 'userSpaceOnUse';
-    attributes.x = formatNumber(-reachX);
-    attributes.y = formatNumber(-reachY);
-    attributes.width = formatNumber(Math.max(box.width + 2 * reachX, MIN_REGION));
-    attributes.height = formatNumber(Math.max(box.height + 2 * reachY, MIN_REGION));
-  } else if (padX > 0 || padY > 0) {
-    // The default region of ten percent around the content clips large blurs.
-    const fractionX = box.width > 0 ? padX / box.width : 0;
-    const fractionY = box.height > 0 ? padY / box.height : 0;
-
-    attributes.x = formatNumber(-fractionX);
-    attributes.y = formatNumber(-fractionY);
-    attributes.width = formatNumber(1 + 2 * fractionX);
-    attributes.height = formatNumber(1 + 2 * fractionY);
-  }
+  attributes.filterUnits = 'userSpaceOnUse';
+  attributes.x = formatNumber(box.x - padX);
+  attributes.y = formatNumber(box.y - padY);
+  attributes.width = formatNumber(Math.max(box.width + 2 * padX, MIN_REGION));
+  attributes.height = formatNumber(Math.max(box.height + 2 * padY, MIN_REGION));
 
   return element('filter', attributes, primitives);
 }

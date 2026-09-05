@@ -7,8 +7,11 @@ describe('effectsToFilter', () => {
     const warnings: string[] = [];
 
     expect(
-      effectsToFilter([{ type: 'BACKGROUND_BLUR', radius: 4, visible: true }], { width: 10, height: 10 }, 'f', (m) =>
-        warnings.push(m),
+      effectsToFilter(
+        [{ type: 'BACKGROUND_BLUR', radius: 4, visible: true }],
+        { x: 0, y: 0, width: 10, height: 10 },
+        'f',
+        (m) => warnings.push(m),
       ),
     ).toBeNull();
     expect(warnings).toHaveLength(1);
@@ -17,18 +20,24 @@ describe('effectsToFilter', () => {
   it('turns a layer blur into a gaussian blur with a grown region', () => {
     const filter = effectsToFilter(
       [{ type: 'LAYER_BLUR', radius: 8, visible: true }],
-      { width: 100, height: 50 },
+      { x: 0, y: 0, width: 100, height: 50 },
       'f',
       () => {},
     )!;
     const blur = filter.children.find((child) => child.name === 'feGaussianBlur')!;
 
     expect(blur.attributes.stdDeviation).toBe('4');
-    expect(filter.attributes).toMatchObject({ id: 'f', x: '-0.12', y: '-0.24', width: '1.24', height: '1.48' });
-    expect(filter.attributes.filterUnits).toBeUndefined();
+    expect(filter.attributes).toMatchObject({
+      id: 'f',
+      filterUnits: 'userSpaceOnUse',
+      x: '-12',
+      y: '-12',
+      width: '124',
+      height: '74',
+    });
   });
 
-  it('writes a shape region in layer coordinates, with the stroke and a floor for a line', () => {
+  it('writes the region in layer coordinates, grown by the reach, with a floor for a line', () => {
     const filter = effectsToFilter(
       [
         {
@@ -39,7 +48,7 @@ describe('effectsToFilter', () => {
           visible: true,
         },
       ],
-      { width: 100, height: 0, outset: 3 },
+      { x: -3, y: -3, width: 106, height: 6 },
       'f',
       () => {},
     )!;
@@ -54,7 +63,7 @@ describe('effectsToFilter', () => {
 
     const bare = effectsToFilter(
       [{ type: 'LAYER_BLUR', radius: 0, visible: true }],
-      { width: 100, height: 0, outset: 0 },
+      { x: 0, y: 0, width: 100, height: 0 },
       'f',
       () => {},
     )!;
@@ -73,7 +82,7 @@ describe('effectsToFilter', () => {
           visible: true,
         },
       ],
-      { width: 100, height: 100 },
+      { x: 0, y: 0, width: 100, height: 100 },
       'f',
       () => {},
     )!;
@@ -104,7 +113,7 @@ describe('effectsToFilter', () => {
           visible: true,
         },
       ],
-      { width: 100, height: 100 },
+      { x: 0, y: 0, width: 100, height: 100 },
       'f',
       () => {},
     )!;
@@ -127,6 +136,6 @@ describe('effectsToFilter', () => {
     expect(morphology.attributes.operator).toBe('erode');
     expect(composite.attributes).toMatchObject({ operator: 'arithmetic', k2: '-1', k3: '1' });
     // An inner shadow stays within the layer, so the region does not grow.
-    expect(filter.attributes.width).toBeUndefined();
+    expect(filter.attributes).toMatchObject({ x: '0', y: '0', width: '100', height: '100' });
   });
 });

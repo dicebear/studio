@@ -22,6 +22,8 @@ export type ChannelPaint = {
   value: string;
   /** The `*-opacity` the paint adds, when it is not 1. */
   opacity?: number;
+  /** Set when the value itself carries alpha, so the paint does not cover what lies under it. */
+  translucent?: boolean;
   /** The `style` for the paint's own blend mode, when it does not paint normally. */
   style?: string;
 };

@@ -63,10 +63,24 @@ export async function createTemplateString(
     'mergePaths',
   ];
 
-  result = optimize(result, {
-    multipass: true,
-    plugins: plugins,
-  }).data.trim();
+  // svgo keeps the parsed path data of an element across its passes, so a
+  // path that mergePaths joins late is converted from the full-precision
+  // coordinates, while a fresh parse of the rounded text can still find a
+  // shorter form (an absolute move in place of a relative one, say). The CLI
+  // check parses fresh, so the export runs until a fresh parse leaves it
+  // alone. Almost every component settles on the first pass.
+  for (let pass = 0; pass < 3; pass++) {
+    const optimized = optimize(result, {
+      multipass: true,
+      plugins: plugins,
+    }).data.trim();
+
+    if (optimized === result) {
+      break;
+    }
+
+    result = optimized;
+  }
 
   // Remove svg tag
   result = result.replace(/(^<svg.*?>|<\/svg>$)/gi, '');

@@ -295,8 +295,197 @@ describe('serializeTree', () => {
 
     expect(out).toContain('<g filter="url(#filter0)" transform="translate(3 4)">');
     expect(out).toContain(
-      '<filter id="filter0" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" x="-4" y="-4" width="18" height="8">',
+      '<filter id="filter0" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" x="-5" y="-5" width="20" height="10">',
     );
+  });
+
+  it('reports a fill or stroke that Figma hands over without geometry', async () => {
+    const warnings: string[] = [];
+    const noFill = shape('VECTOR', { name: 'blob', fills: [solid(0, 0, 0)], fillGeometry: [] });
+    const noCenterline = shape('VECTOR', { name: 'scribble', strokes: [solid(0, 0, 0)], vectorPaths: [] });
+    const noOutline = shape('VECTOR', {
+      name: 'band',
+      strokes: [solid(0, 0, 0)],
+      strokeAlign: 'INSIDE',
+      strokeGeometry: [],
+    });
+
+    expect(await svg(container('FRAME', [noFill, noCenterline, noOutline]), { warn: (m) => warnings.push(m) })).toBe(
+      '',
+    );
+    expect(warnings).toEqual([
+      'The layer "blob" (VECTOR) has a fill, but Figma reports no fill geometry for it. The fill was not exported.',
+      'The layer "scribble" (VECTOR) has a stroke, but Figma reports no vector path for it. The stroke was not exported.',
+      'The layer "band" (VECTOR) has a stroke, but Figma reports no stroke geometry for it. The stroke was not exported.',
+    ]);
+  });
+
+  it('sizes a line filter for the stroke above the layer even without vertical reach', async () => {
+    const line = shape('LINE', {
+      height: 0,
+      width: 10,
+      strokes: [solid(0, 0, 0)],
+      strokeWeight: 2,
+      effects: [
+        { type: 'INNER_SHADOW', color: { r: 0, g: 0, b: 0, a: 0.5 }, offset: { x: 0, y: 0 }, radius: 0, visible: true },
+      ],
+    });
+
+    expect(await svg(container('FRAME', [line]))).toContain(
+      '<filter id="filter0" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" x="-2" y="-2" width="14" height="4">',
+    );
+  });
+
+  it('sizes a container filter from its box and its visible children, strokes included', async () => {
+    const inside = shape('RECTANGLE', { relativeTransform: translate(30, 30), fills: [solid(0, 0, 0)] });
+    const outside = shape('RECTANGLE', {
+      relativeTransform: translate(45, 45),
+      fills: [solid(0, 0, 0)],
+      strokes: [solid(0, 0, 0)],
+      strokeWeight: 4,
+      strokeAlign: 'OUTSIDE',
+    });
+    const hidden = shape('RECTANGLE', {
+      relativeTransform: translate(90, 90),
+      fills: [solid(0, 0, 0)],
+      visible: false,
+    });
+    const frame = container('FRAME', [inside, outside, hidden], {
+      relativeTransform: translate(100, 100),
+      width: 50,
+      height: 50,
+      absoluteTransform: translate(100, 100),
+      // Cut at a clipping ancestor, so of no use for the region.
+      absoluteRenderBounds: { x: 100, y: 100, width: 50, height: 50 },
+      effects: [{ type: 'LAYER_BLUR', radius: 2, visible: true }],
+    });
+
+    // Frame 0..50, outside child 41..59 with its stroke, blur reach 3.
+    expect(await svg(container('FRAME', [frame]))).toContain(
+      '<filter id="filter0" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" x="-3" y="-3" width="65" height="65">',
+    );
+  });
+
+  it("sizes a group filter in the parent's coordinates, where the group's children are placed", async () => {
+    const child = shape('RECTANGLE', { relativeTransform: translate(-5, -5), fills: [solid(0, 0, 0)] });
+    const group = container('GROUP', [child], {
+      relativeTransform: translate(-5, -5),
+      absoluteTransform: translate(-5, -5),
+      absoluteRenderBounds: { x: 0, y: 0, width: 5, height: 5 },
+      effects: [{ type: 'LAYER_BLUR', radius: 2, visible: true }],
+    });
+    const out = await svg(container('FRAME', [group], { width: 20, height: 20, clipsContent: true }));
+
+    expect(out).toContain('<g filter="url(#filter0)"><rect width="10" height="10" fill="#000000" x="-5" y="-5"/></g>');
+    expect(out).toContain(
+      '<filter id="filter0" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" x="-8" y="-8" width="16" height="16">',
+    );
+  });
+
+  it('moves a primitive with a gradient by a transform so the gradient follows', async () => {
+    const rect = shape('RECTANGLE', {
+      relativeTransform: translate(20, 30),
+      width: 100,
+      height: 50,
+      fills: [
+        {
+          type: 'GRADIENT_LINEAR',
+          gradientTransform: [
+            [0, 1, 0],
+            [-1, 0, 1],
+          ],
+          gradientStops: [
+            { position: 0, color: { r: 0, g: 0, b: 0, a: 1 } },
+            { position: 1, color: { r: 1, g: 1, b: 1, a: 1 } },
+          ],
+        },
+      ],
+    });
+
+    expect(await svg(container('FRAME', [rect]))).toContain(
+      '<rect width="100" height="50" fill="url(#paint_linear0)" transform="translate(20 30)"/>',
+    );
+  });
+
+  it('leaves out a bound paint that is switched off', async () => {
+    const bound = shape('RECTANGLE', { fillStyleId: 'S:1', fills: [{ ...solid(0, 0, 0), visible: false }] });
+
+    expect(
+      await svg(container('FRAME', [bound]), {
+        hooks: { resolveStyle: () => [{ value: '{{colors.skin}}' }] },
+      }),
+    ).toBe('');
+  });
+
+  it('keeps the fill under a translucent placeholder stroke on its own element', async () => {
+    const rect = shape('RECTANGLE', {
+      fills: [solid(1, 0, 0)],
+      strokes: [solid(0, 0, 0)],
+      strokeStyleId: 'S:1',
+      strokeAlign: 'INSIDE',
+      strokeWeight: 2,
+      strokeGeometry: [{ windingRule: 'EVENODD', data: 'M0 0' }],
+    });
+
+    expect(
+      await svg(container('FRAME', [rect]), {
+        hooks: { resolveStyle: () => [{ value: '{{colors.line}}', translucent: true }] },
+      }),
+    ).toBe(
+      '<rect width="10" height="10" fill="#ff0000"/>' +
+        '<rect x="1" y="1" width="8" height="8" fill="none" stroke="{{colors.line}}" stroke-width="2"/>',
+    );
+  });
+
+  it('keeps the opacity of any mask and the effects of a painted one, and reports effects on a vector mask', async () => {
+    const warnings: string[] = [];
+    const above = shape('RECTANGLE', { fills: [solid(0, 0, 1)] });
+    const soft = shape('ELLIPSE', {
+      name: 'soft',
+      isMask: true,
+      opacity: 0.5,
+      fills: [solid(1, 0, 0)],
+      effects: [{ type: 'LAYER_BLUR', radius: 2, visible: true }],
+    });
+
+    expect(await svg(container('FRAME', [soft, above]), { warn: (m) => warnings.push(m) })).toBe(
+      '<g mask="url(#mask0)"><rect width="10" height="10" fill="#0000ff"/></g>' +
+        '<defs><filter id="filter0" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" x="-3" y="-3" width="16" height="16">' +
+        '<feFlood flood-opacity="0" result="r0"/><feBlend mode="normal" in="SourceGraphic" in2="r0" result="r1"/>' +
+        '<feGaussianBlur in="r1" stdDeviation="1" result="r2"/></filter>' +
+        '<mask id="mask0" style="mask-type:alpha"><g filter="url(#filter0)" opacity="0.5"><circle cx="5" cy="5" r="5" fill="#ff0000"/></g></mask></defs>',
+    );
+    expect(warnings).toEqual([]);
+
+    const outline = shape('ELLIPSE', { ...soft, maskType: 'VECTOR' });
+
+    // Figma thins a vector mask by the layer opacity as well, its own export
+    // writes the white outline with the opacity on it.
+    expect(await svg(container('FRAME', [outline, above]), { warn: (m) => warnings.push(m) })).toContain(
+      '<mask id="mask0" style="mask-type:alpha"><circle cx="5" cy="5" r="5" fill="#ffffff" opacity="0.5"/></mask>',
+    );
+    expect(warnings).toEqual([
+      'The mask "soft" has effects, which a vector mask cannot carry. It masks by its outline.',
+    ]);
+  });
+
+  it('keeps the opacity of a layer inside a vector mask group, the way the pixel-art beards are built', async () => {
+    const inner = shape('BOOLEAN_OPERATION', { name: 'union', opacity: 0.9, fills: [solid(1, 0, 0)] });
+    const mask = container('GROUP', [inner], { name: 'mask', isMask: true, maskType: 'VECTOR' });
+    const above = shape('RECTANGLE', { fills: [solid(0, 0, 1)] });
+
+    expect(await svg(container('FRAME', [mask, above]))).toContain(
+      '<mask id="mask0" style="mask-type:alpha"><path d="M0 0H10V10H0Z" fill="#ffffff" opacity="0.9"/></mask>',
+    );
+  });
+
+  it('hides the layers under a mask at zero opacity and says so', async () => {
+    const warnings: string[] = [];
+    const mask = shape('ELLIPSE', { name: 'off', isMask: true, opacity: 0, fills: [solid(1, 0, 0)] });
+    const above = shape('RECTANGLE', { fills: [solid(0, 0, 1)] });
+
+    expect(await svg(container('FRAME', [mask, above]), { warn: (m) => warnings.push(m) })).toBe('');
+    expect(warnings).toEqual(['The mask "off" is at zero opacity, so the layers it masks were not exported.']);
   });
 
   it('places hook output, keeps its transform inside, and hands styles to the hook', async () => {

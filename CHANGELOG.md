@@ -39,7 +39,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   An inside or outside stroke runs along a primitive moved by half its weight, the way Figma's export wrote it, or is
   cut to the side of the fill it belongs on, since Figma outlines such a stroke with twice its weight. An instance that
   masks its siblings keeps its component reference inside the `<mask>`, so the masked layers no longer drop out of the
-  export.
+  export. A mask keeps its opacity and effects, a mask at zero opacity hides its layers and is reported, like an empty
+  one.
 - A line layer draws its stroke above its y position and keeps round and square caps inside its width, as Figma does,
   instead of half a stroke lower and a cap longer.
 - A fill or stroke with a blend mode of its own keeps it as `mix-blend-mode` on its element. The export dropped it and

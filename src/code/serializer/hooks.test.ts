@@ -67,12 +67,39 @@ function instanceOf(main: ComponentNode, props: Record<string, unknown> = {}) {
   });
 }
 
-async function svg(children: SceneNode[]): Promise<string> {
+type SvgOptions = {
+  animationsEnabled?: boolean;
+  styles?: Record<string, unknown>;
+  warn?: (message: string) => void;
+};
+
+async function svg(children: SceneNode[], options: SvgOptions = {}): Promise<string> {
   const root = layer('FRAME', { children, fillGeometry: [], clipsContent: false }) as SceneNode & ChildrenMixin;
-  const hooks = createDicebearHooks({ aliasesEnabled: true, animationsEnabled: false, styles: async () => null });
-  const tree = await serializeTree(root, { host: { mixed: MIXED }, hooks, clipFrames: false });
+  const hooks = createDicebearHooks({
+    aliasesEnabled: true,
+    animationsEnabled: options.animationsEnabled ?? false,
+    styles: async (id) => (options.styles?.[id] ?? null) as BaseStyle | null,
+  });
+  const tree = await serializeTree(root, { host: { mixed: MIXED }, hooks, clipFrames: false, warn: options.warn });
 
   return stringify(tree).replace(/^<svg[^>]*>|<\/svg>$/g, '');
+}
+
+/** A palette style bound to one solid paint. */
+function paintStyle(name: string, opacity = 1) {
+  return { type: 'PAINT', name, remote: false, paints: [{ type: 'SOLID', color: { r: 1, g: 0, b: 0 }, opacity }] };
+}
+
+/** An opacity track from `from` to `to` over one second. */
+function opacityTrack(from: number, to: number) {
+  return {
+    OPACITY: {
+      keyframes: [
+        { timelinePosition: 0, value: { type: 'FLOAT', value: from } },
+        { timelinePosition: 1, value: { type: 'FLOAT', value: to } },
+      ],
+    },
+  };
 }
 
 describe('createDicebearHooks', () => {
@@ -90,5 +117,59 @@ describe('createDicebearHooks', () => {
       '<g mask="url(#mask0)"><rect width="10" height="10" fill="#ff0000"/></g>' +
         '<defs><mask id="mask0" style="mask-type:alpha"><g>{{components.mouth}}</g></mask></defs>',
     );
+  });
+
+  it('flags a translucent palette style so its stroke stays off the fill', async () => {
+    const rect = layer('RECTANGLE', {
+      fills: [{ type: 'SOLID', color: { r: 0, g: 0, b: 1 } }],
+      strokes: [{ type: 'SOLID', color: { r: 1, g: 0, b: 0 } }],
+      strokeStyleId: 'S:line',
+      strokeAlign: 'INSIDE',
+      strokeWeight: 2,
+      strokeGeometry: [{ windingRule: 'EVENODD', data: 'M0 0' }],
+    });
+    const styles = { 'S:line': paintStyle('line/01 ff000080', 0.5) };
+
+    expect(await svg([rect], { styles })).toBe(
+      '<rect width="10" height="10" fill="#0000ff"/>' +
+        '<rect x="1" y="1" width="8" height="8" fill="none" stroke="{{colors.line}}" stroke-width="2"/>',
+    );
+
+    const opaque = { 'S:line': paintStyle('line/01 ff0000') };
+
+    expect(await svg([rect], { styles: opaque })).toBe(
+      '<rect width="8" height="8" fill="#0000ff" x="1" y="1" stroke="{{colors.line}}" stroke-width="2"/>',
+    );
+  });
+
+  it('lets the resting opacity stand in for the layer opacity instead of multiplying', async () => {
+    const rect = layer('RECTANGLE', {
+      name: 'blink',
+      opacity: 0.5,
+      fills: [{ type: 'SOLID', color: { r: 0, g: 0, b: 0 } }],
+      manualKeyframeTracks: opacityTrack(0.5, 1),
+    });
+    const out = await svg([rect], { animationsEnabled: true });
+
+    expect(out.match(/opacity="/g)).toHaveLength(1);
+    expect(out).toContain('<g data-dbanim="0:');
+    expect(out).toContain('" opacity="0.5"><rect width="10" height="10" fill="#000000"/></g>');
+  });
+
+  it('exports an animated mask static and says so', async () => {
+    const warnings: string[] = [];
+    const mask = layer('ELLIPSE', {
+      name: 'lid',
+      isMask: true,
+      fills: [{ type: 'SOLID', color: { r: 0, g: 0, b: 0 } }],
+      manualKeyframeTracks: opacityTrack(1, 0),
+    });
+    const above = layer('RECTANGLE', { fills: [{ type: 'SOLID', color: { r: 1, g: 0, b: 0 } }] });
+    const out = await svg([mask, above], { animationsEnabled: true, warn: (m) => warnings.push(m) });
+
+    expect(out).not.toContain('data-dbanim');
+    expect(warnings).toEqual([
+      'The mask "lid" has an animation, but a mask cannot animate in a definition. It was exported static.',
+    ]);
   });
 });

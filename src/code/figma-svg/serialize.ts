@@ -4,7 +4,7 @@ import { blendModeStyle } from './blend';
 import { element } from './element';
 import { effectsToFilter, type FilterBox } from './effects';
 import { planMaskedSiblings, type MaskPlanItem } from './masks';
-import { IDENTITY, fromTransform, isIdentity, isTranslation, toAttribute, type Matrix } from './matrix';
+import { IDENTITY, apply, fromTransform, isIdentity, isTranslation, toAttribute, type Matrix } from './matrix';
 import { formatNumber } from './numbers';
 import { resolvePaint } from './paints';
 import type { ChannelPaint, PaintChannel, SerializeContext, SerializeHooks, SerializeOptions } from './types';
@@ -102,6 +102,20 @@ function pathElement(path: VectorPath, attributes: Record<string, string>): INod
 }
 
 async function channelPaints(ctx: Context, node: SceneNode & GeometryMixin, channel: PaintChannel, size: Size) {
+  const paints = channel === 'fill' ? node.fills : node.strokes;
+
+  if (paints === ctx.host.mixed) {
+    ctx.warn(`The layer "${node.name}" mixes several ${channel}s in one text and was exported without them.`);
+
+    return [];
+  }
+
+  // A bound style keeps its binding while its paint is switched off. Nothing
+  // paints then, in Figma and here.
+  if (!((paints as ReadonlyArray<Paint>) ?? []).some((paint) => paint.visible !== false)) {
+    return [];
+  }
+
   const styleId = channel === 'fill' ? node.fillStyleId : node.strokeStyleId;
 
   if (typeof styleId === 'string' && styleId !== '' && ctx.hooks.resolveStyle) {
@@ -112,15 +126,7 @@ async function channelPaints(ctx: Context, node: SceneNode & GeometryMixin, chan
     }
   }
 
-  const paints = channel === 'fill' ? node.fills : node.strokes;
-
-  if (paints === ctx.host.mixed) {
-    ctx.warn(`The layer "${node.name}" mixes several ${channel}s in one text and was exported without them.`);
-
-    return [];
-  }
-
-  return ctx.resolvePaints((paints as ReadonlyArray<Paint>) ?? [], size);
+  return ctx.resolvePaints(paints as ReadonlyArray<Paint>, size);
 }
 
 type Primitive = { name: 'rect' | 'ellipse' | 'circle'; attributes: Record<string, string> };
@@ -312,7 +318,7 @@ function alignedPrimitive(
  * the half of the stroke band that the move took from it.
  */
 function coversBelow(paint: ChannelPaint): boolean {
-  return paint.opacity === undefined && !paint.value.startsWith('url(');
+  return paint.opacity === undefined && !paint.translucent && !paint.value.startsWith('url(');
 }
 
 /**
@@ -421,11 +427,23 @@ async function shapeElements(
   const outline = (): VectorPaths => (fillGeometry ??= node.fillGeometry);
   const elements: INode[] = [];
 
+  // A paint without geometry to draw it with would vanish without a trace,
+  // so it is reported with what Figma handed over.
+  const missing = (channel: PaintChannel, source: string): void => {
+    ctx.warn(
+      `The layer "${node.name}" (${node.type}) has a ${channel}, but Figma reports no ${source} for it. The ${channel} was not exported.`,
+    );
+  };
+
   /** One primitive, or one path per subpath of the geometry. */
   const draw = (attributes: Record<string, string>, paths: () => VectorPaths): INode[] =>
     primitive !== null
       ? [element(primitive.name, { ...primitive.attributes, ...attributes })]
       : paths().map((path) => pathElement(path, attributes));
+
+  if (fills.length > 0 && primitive === null && outline().length === 0) {
+    missing('fill', 'fill geometry');
+  }
 
   for (const fill of fills) {
     elements.push(...draw(paintAttributes('fill', fill), outline));
@@ -438,6 +456,10 @@ async function shapeElements(
   if (strokeAsAttributes(ctx, node, strokes)) {
     const attributes = strokeAttributes(node, strokes[0]);
     const line = primitive !== null ? [] : centerline(node, outline());
+
+    if (primitive === null && line.length === 0) {
+      missing('stroke', node.type === 'VECTOR' ? 'vector path' : 'fill geometry to run along');
+    }
 
     // A single filled element that follows the same outline takes the stroke
     // itself. A vector's fill geometry can differ from its centerline (an
@@ -477,6 +499,10 @@ async function shapeElements(
   // Outlined strokes are filled shapes, so they never take the primitive form.
   const strokeGeometry = node.strokeGeometry;
   const outlined: INode[] = [];
+
+  if (strokeGeometry.length === 0) {
+    missing('stroke', 'stroke geometry');
+  }
 
   for (const stroke of strokes) {
     for (const path of strokeGeometry) {
@@ -519,8 +545,11 @@ function placeElements(
     const [only] = elements;
 
     // Outlined strokes leave a primitive layer as paths, or as a clipped
-    // group, which have no position attributes to move.
-    if (primitive && PRIMITIVE_NAMES.has(only.name) && isTranslation(matrix)) {
+    // group, which have no position attributes to move. A gradient is written
+    // in the layer's coordinates and only follows a transform, not a position.
+    const paintsDef = ['fill', 'stroke'].some((key) => only.attributes[key]?.startsWith('url('));
+
+    if (primitive && !paintsDef && PRIMITIVE_NAMES.has(only.name) && isTranslation(matrix)) {
       if (!isIdentity(matrix)) {
         placePrimitive(only, matrix);
       }
@@ -548,16 +577,23 @@ function placeElements(
   return [element('g', groupAttributes, elements)];
 }
 
-/** Opacity and blend mode as attributes, for a layer that is not a mask. */
-function blendAttributes(ctx: Context, node: SceneNode, asMask: boolean): Record<string, string> {
+/**
+ * Opacity and blend mode as attributes. A mask keeps its opacity, which
+ * weakens the mask the way it does in Figma, and drops its blend mode, which
+ * has nothing to blend with inside `<mask>`. That holds for a vector mask
+ * too: Figma takes its outline in place of its paint, but a layer opacity
+ * inside it still thins the mask, and Figma's own export writes it the same
+ * way (a white outline with the opacity on it).
+ */
+function blendAttributes(ctx: Context, node: SceneNode, mode: MaskMode): Record<string, string> {
   const attributes: Record<string, string> = {};
-
-  if (asMask) {
-    return attributes;
-  }
 
   if ('opacity' in node && node.opacity !== 1) {
     attributes.opacity = formatNumber(node.opacity);
+  }
+
+  if (mode !== false) {
+    return attributes;
   }
 
   if ('blendMode' in node) {
@@ -588,32 +624,104 @@ function strokeOutset(ctx: Context, node: SceneNode & GeometryMixin): number {
     return 0;
   }
 
+  const weight = strokeWeightOf(ctx, node);
+
+  // A line's stroke sits entirely above its zero-height box, see centerline().
+  if (node.type === 'LINE') {
+    return weight;
+  }
+
   if (node.strokeAlign === 'INSIDE') {
     return 0;
   }
 
-  const weight = strokeWeightOf(ctx, node);
-
   return node.strokeAlign === 'CENTER' ? weight / 2 : weight;
+}
+
+/** The box of a shape: its layout plus the stroke around it. */
+function shapeBox(ctx: Context, node: SceneNode): FilterBox {
+  const outset = 'strokes' in node ? strokeOutset(ctx, node as SceneNode & GeometryMixin) : 0;
+
+  return { x: -outset, y: -outset, width: node.width + 2 * outset, height: node.height + 2 * outset };
+}
+
+/** The axis-aligned box around a box after a transform. */
+function mapBox(matrix: Matrix, box: FilterBox): FilterBox {
+  const corners = [
+    apply(matrix, box.x, box.y),
+    apply(matrix, box.x + box.width, box.y),
+    apply(matrix, box.x, box.y + box.height),
+    apply(matrix, box.x + box.width, box.y + box.height),
+  ];
+  const xs = corners.map((corner) => corner.x);
+  const ys = corners.map((corner) => corner.y);
+  const x = Math.min(...xs);
+  const y = Math.min(...ys);
+
+  return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
+}
+
+function unionBox(boxes: FilterBox[]): FilterBox {
+  const x = Math.min(...boxes.map((box) => box.x));
+  const y = Math.min(...boxes.map((box) => box.y));
+  const right = Math.max(...boxes.map((box) => box.x + box.width));
+  const bottom = Math.max(...boxes.map((box) => box.y + box.height));
+
+  return { x, y, width: right - x, height: bottom - y };
+}
+
+/**
+ * The rectangle a layer paints, in the coordinates its elements are written
+ * in. A shape is its box plus the stroke around it. A container is its own
+ * box joined with the boxes of its visible children, each mapped by the
+ * child's transform, so children outside the layout count too. A group has
+ * no box of its own: its children are placed in the parent's coordinates,
+ * and so is the group's filter.
+ *
+ * Figma's render bounds are of no use here: they are cut at a clipping
+ * ancestor, and for a group they sit in a coordinate system the elements
+ * are not written in.
+ */
+function paintedBox(ctx: Context, node: SceneNode): FilterBox {
+  if (!CONTAINER_TYPES.has(node.type)) {
+    return shapeBox(ctx, node);
+  }
+
+  const boxes: FilterBox[] = node.type === 'GROUP' ? [] : [shapeBox(ctx, node)];
+
+  if ('children' in node) {
+    for (const child of node.children) {
+      if (!child.visible) {
+        continue;
+      }
+
+      const matrix = child.type === 'GROUP' ? IDENTITY : fromTransform(child.relativeTransform);
+
+      boxes.push(mapBox(matrix, paintedBox(ctx, child)));
+    }
+  }
+
+  return boxes.length > 0 ? unionBox(boxes) : { x: 0, y: 0, width: node.width, height: node.height };
 }
 
 /**
  * Wraps the layer's elements in the filter for its effects, when it has any.
- * The elements are in the layer's own coordinates, so a shape's region can be
- * written in them, see {@link FilterBox}.
+ * The elements are in the layer's own coordinates, so the region is written
+ * in them, see {@link FilterBox}.
  */
-function applyEffects(ctx: Context, node: SceneNode, elements: INode[], asMask: boolean): INode[] {
-  if (asMask || elements.length === 0 || !('effects' in node) || node.effects.length === 0) {
+function applyEffects(ctx: Context, node: SceneNode, elements: INode[], mode: MaskMode): INode[] {
+  if (elements.length === 0 || !('effects' in node) || !node.effects.some((effect) => effect.visible)) {
     return elements;
   }
 
-  const box: FilterBox = { width: node.width, height: node.height };
+  // A vector mask is its outline alone, a blur or shadow would not reach it.
+  if (mode === 'outline') {
+    ctx.warn(`The mask "${node.name}" has effects, which a vector mask cannot carry. It masks by its outline.`);
 
-  if (SHAPE_TYPES.has(node.type)) {
-    box.outset = strokeOutset(ctx, node as SceneNode & GeometryMixin);
+    return elements;
   }
 
-  const filter = effectsToFilter(node.effects, box, ctx.nextId('filter'), ctx.warn);
+  const filter = effectsToFilter(node.effects, paintedBox(ctx, node), ctx.nextId('filter'), ctx.warn);
 
   if (filter === null) {
     return elements;
@@ -677,11 +785,18 @@ async function serializePlan(ctx: Context, plan: MaskPlanItem<SceneNode>[], mode
       continue;
     }
 
+    // An empty mask, or one at zero opacity, hides everything it masks. That
+    // is what Figma shows, but rarely what the designer meant, so it is
+    // reported.
+    if ('opacity' in item.mask && item.mask.opacity === 0) {
+      ctx.warn(`The mask "${item.mask.name}" is at zero opacity, so the layers it masks were not exported.`);
+
+      continue;
+    }
+
     const maskType = 'maskType' in item.mask ? item.mask.maskType : 'ALPHA';
     const content = await serializeNode(ctx, item.mask, maskType === 'VECTOR' ? 'outline' : 'paint');
 
-    // An empty mask hides everything it masks. That is what Figma shows, but
-    // rarely what the designer meant, so it is reported.
     if (content.length === 0) {
       ctx.warn(`The mask "${item.mask.name}" has no content, so the layers it masks were not exported.`);
 
@@ -707,7 +822,8 @@ async function serializePlan(ctx: Context, plan: MaskPlanItem<SceneNode>[], mode
 /**
  * The elements of one layer in its parent's coordinates. A mask mode renders
  * the layer as mask content: a vector mask as its white outline, an alpha or
- * luminance mask as it paints, both without opacity, blend mode and effects.
+ * luminance mask as it paints, with its opacity and effects and without its
+ * blend mode.
  */
 async function serializeNode(ctx: Context, node: SceneNode, mode: MaskMode): Promise<INode[]> {
   await breathe(ctx);
@@ -723,7 +839,7 @@ async function serializeNode(ctx: Context, node: SceneNode, mode: MaskMode): Pro
   // and the group itself, relative to the nearest frame. Its transform is
   // derived from theirs and must not be applied a second time.
   const matrix = node.type === 'GROUP' ? IDENTITY : fromTransform(node.relativeTransform);
-  const attributes = blendAttributes(ctx, node, asMask);
+  const attributes = blendAttributes(ctx, node, mode);
   let raw = ctx.hooks.resolveNode ? await ctx.hooks.resolveNode(node, asMask, ctx) : undefined;
   let primitive: Primitive | null = null;
 
@@ -746,7 +862,7 @@ async function serializeNode(ctx: Context, node: SceneNode, mode: MaskMode): Pro
   // The filter wraps the elements before they are placed, so its region is in
   // the layer's coordinates and the layer's opacity applies to the shadows
   // too. A filtered primitive is a group by then and takes a transform.
-  const filtered = applyEffects(ctx, node, raw, asMask);
+  const filtered = applyEffects(ctx, node, raw, mode);
   const placed = placeElements(filtered, matrix, attributes, primitive !== null && filtered === raw);
 
   return ctx.hooks.wrapNode ? ctx.hooks.wrapNode(node, placed, asMask, ctx) : placed;

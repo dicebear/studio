@@ -91,7 +91,8 @@ export function createDicebearHooks(options: DicebearHookOptions): SerializeHook
 
     /**
      * A palette style becomes its placeholder, the alpha lives in the palette
-     * value. The `currentColor` marker becomes `currentColor` and keeps the
+     * value and is only flagged, so a see-through stroke keeps its own
+     * element. The `currentColor` marker becomes `currentColor` and keeps the
      * paint's alpha, which belongs to the layer. Any other style falls back to
      * the layer's paints.
      */
@@ -103,14 +104,13 @@ export function createDicebearHooks(options: DicebearHookOptions): SerializeHook
       }
 
       const group = getNameParts(style.name).group;
+      const opacity = (style.paints[0] as SolidPaint).opacity ?? 1;
 
       if (group === CURRENT_COLOR_GROUP) {
-        const opacity = (style.paints[0] as SolidPaint).opacity ?? 1;
-
         return [{ value: 'currentColor', opacity: opacity === 1 ? undefined : opacity }];
       }
 
-      return [{ value: `{{colors.${group}}}` }];
+      return [{ value: `{{colors.${group}}}`, translucent: opacity !== 1 ? true : undefined }];
     },
 
     /**
@@ -121,7 +121,19 @@ export function createDicebearHooks(options: DicebearHookOptions): SerializeHook
      * `mergePaths`.
      */
     wrapNode(node, elements, asMask, ctx): INode[] {
-      if (asMask || elements.length === 0 || !isMotionAvailable(node)) {
+      if (elements.length === 0 || !isMotionAvailable(node)) {
+        return elements;
+      }
+
+      // Mask content sits below `defs`, where the schema allows no animation:
+      // the renderer's carrier group would never reach the mask.
+      if (asMask) {
+        if (options.animationsEnabled && hasAnimationTracks(node)) {
+          ctx.warn(
+            `The mask "${node.name}" has an animation, but a mask cannot animate in a definition. It was exported static.`,
+          );
+        }
+
         return elements;
       }
 
@@ -148,9 +160,16 @@ export function createDicebearHooks(options: DicebearHookOptions): SerializeHook
       };
 
       // The resting state the animation replaces. Without it a layer that only
-      // shows while animating would sit in the static avatar.
+      // shows while animating would sit in the static avatar. It stands in for
+      // the layer's own opacity, which would otherwise multiply with it.
       if (animation.restingOpacity !== undefined) {
         attributes.opacity = formatNumber(animation.restingOpacity);
+
+        const [only] = elements;
+
+        if (elements.length === 1 && 'opacity' in node && only.attributes.opacity === formatNumber(node.opacity)) {
+          delete only.attributes.opacity;
+        }
       }
 
       return [element('g', attributes, elements)];

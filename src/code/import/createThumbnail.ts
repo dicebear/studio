@@ -1,4 +1,4 @@
-import { Avatar, Style } from '@dicebear/core';
+import { Avatar, Color, Style } from '@dicebear/core';
 import { DefinitionFile } from '../types';
 import { loadFirstFont } from '../utils/loadFirstFont';
 import { tick } from '../utils/tick';
@@ -84,8 +84,12 @@ function pickHex(picks: Picks, group: string): string | null {
   return typeof hex === 'string' ? normalizeHex(hex) : null;
 }
 
+/**
+ * A hex value the way the resolver spells it, without the hash. A style name
+ * keeps the definition's short form, the resolver expands it.
+ */
 function normalizeHex(hex: string): string {
-  return hex.replace('#', '').toLowerCase();
+  return Color.toHex(hex).slice(1);
 }
 
 /**
