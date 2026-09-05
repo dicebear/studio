@@ -101,11 +101,17 @@ function pickName(instance: InstanceNode, group: string): string {
  * resolver picked, hides the components it left out, and applies the picked
  * transforms. Parents go first: swapping an instance replaces its nested
  * instances, so those are read only after the swap.
+ *
+ * Figma allows no transform override inside an instance. An instance whose
+ * nested components need one is detached after its own swap, so the nested
+ * instances sit in a plain frame and take their transform. The detached
+ * level loses its variant dropdown, the parts inside keep theirs.
  */
 async function applyVariantPicks(
   root: SceneNode & ChildrenMixin,
   picks: Picks,
   variantsByGroup: Map<string, Map<string, ComponentNode>>,
+  warnOnce: (message: string) => void,
 ): Promise<void> {
   const queue: (SceneNode & ChildrenMixin)[] = [root];
 
@@ -121,17 +127,13 @@ async function applyVariantPicks(
         continue;
       }
 
-      const main = await child.getMainComponentAsync();
-      const group = main?.name.split('/')[0];
-      const variants = group === undefined ? undefined : variantsByGroup.get(group);
+      const pick = await resolveInstancePick(child, picks, variantsByGroup);
 
-      if (!main || group === undefined || !variants) {
+      if (!pick) {
         continue;
       }
 
-      const name = pickName(child, group);
-      const variant = picks[`${name}Variant`];
-      const target = typeof variant === 'string' ? variants.get(variant) : undefined;
+      const { main, group, name, target } = pick;
 
       if (!target) {
         // No variant means the resolver left the component out.
@@ -151,12 +153,68 @@ async function applyVariantPicks(
       const matrix = componentTransform(picks, name, child.width, child.height);
 
       if (matrix) {
-        child.relativeTransform = multiply(child.relativeTransform, matrix);
+        if (isInsideInstance(child, root)) {
+          warnOnce(`component "${name}" is nested, its transform picks were not applied to the thumbnail.`);
+        } else {
+          child.relativeTransform = multiply(child.relativeTransform, matrix);
+        }
       }
 
-      queue.push(child);
+      if (await hasTransformedDescendant(child, picks, variantsByGroup)) {
+        warnOnce(
+          `component "${name}" was detached in the thumbnail, so the components inside it could take their transform picks.`,
+        );
+        queue.push(child.detachInstance());
+      } else {
+        queue.push(child);
+      }
     }
   }
+}
+
+type InstancePick = {
+  main: ComponentNode;
+  group: string;
+  name: string;
+  /** The picked variant's main component, undefined when the resolver left the component out. */
+  target: ComponentNode | undefined;
+};
+
+/** Reads which imported group an instance belongs to and what the resolver picked for it. */
+async function resolveInstancePick(
+  instance: InstanceNode,
+  picks: Picks,
+  variantsByGroup: Map<string, Map<string, ComponentNode>>,
+): Promise<InstancePick | null> {
+  const main = await instance.getMainComponentAsync();
+  const group = main?.name.split('/')[0];
+  const variants = group === undefined ? undefined : variantsByGroup.get(group);
+
+  if (!main || group === undefined || !variants) {
+    return null;
+  }
+
+  const name = pickName(instance, group);
+  const variant = picks[`${name}Variant`];
+
+  return { main, group, name, target: typeof variant === 'string' ? variants.get(variant) : undefined };
+}
+
+/** True when a visible instance anywhere inside needs a transform of its own. */
+async function hasTransformedDescendant(
+  instance: InstanceNode,
+  picks: Picks,
+  variantsByGroup: Map<string, Map<string, ComponentNode>>,
+): Promise<boolean> {
+  for (const nested of instance.findAll((node) => node.type === 'INSTANCE') as InstanceNode[]) {
+    const pick = await resolveInstancePick(nested, picks, variantsByGroup);
+
+    if (pick?.target && componentTransform(picks, pick.name, nested.width, nested.height) !== null) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -234,12 +292,59 @@ async function createSampleAvatar(
     clone.setPluginData(key, '');
   }
 
-  await applyVariantPicks(clone, picks, variantsByGroup);
+  await applyVariantPicks(clone, picks, variantsByGroup, options.warnOnce);
   await applyColorPicks(clone, picks, options.paintStylesByGroup);
 
-  clone.rescale(TILE_SIZE / options.frame.width);
+  scaleClone(clone, TILE_SIZE / options.frame.width);
   clone.x = 0;
   clone.y = 0;
+}
+
+function isInsideInstance(node: BaseNode, root: SceneNode): boolean {
+  let current = node.parent;
+
+  while (current && current !== root) {
+    if (current.type === 'INSTANCE') {
+      return true;
+    }
+
+    current = current.parent;
+  }
+
+  return false;
+}
+
+/**
+ * Brings the clone to tile size. `rescale` is out: it writes the transform
+ * of every descendant, and inside an instance that is not allowed. A resize
+ * with scale constraints does the same job, the way the frame scales when a
+ * user drags its corner. The masters carry those constraints already, the
+ * layers outside the instances get them here. Constraints leave stroke
+ * weights alone, so those are scaled by hand.
+ */
+function scaleClone(clone: FrameNode, factor: number): void {
+  for (const node of clone.findAll((candidate) => !isInsideInstance(candidate, clone))) {
+    if ('constraints' in node) {
+      node.constraints = { horizontal: 'SCALE', vertical: 'SCALE' };
+    }
+  }
+
+  clone.resize(clone.width * factor, clone.height * factor);
+
+  for (const node of [clone, ...clone.findAll()]) {
+    if (
+      'strokeWeight' in node &&
+      typeof node.strokeWeight === 'number' &&
+      node.strokeWeight > 0 &&
+      node.strokes.length > 0
+    ) {
+      try {
+        node.strokeWeight = node.strokeWeight * factor;
+      } catch {
+        // A stroke that cannot be overridden keeps its weight.
+      }
+    }
+  }
 }
 
 async function createTitle(frame: FrameNode, title: string, warnOnce: (message: string) => void): Promise<void> {

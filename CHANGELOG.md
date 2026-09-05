@@ -26,8 +26,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Build the thumbnail tiles from the avatar frame instead of importing rendered SVGs. Each tile is a clone of the frame
   with the variants, transforms and colors the DiceBear resolver picked for its seed, so the tiles stay editable:
-  variants swap through the instance dropdown, colors rebind to the palette styles. Layers on `currentColor` keep the
-  color the import chose for the frame.
+  variants swap through the instance dropdown, colors rebind to the palette styles. An instance whose nested parts carry
+  a transform of their own is detached in the tile, Figma allows no position override inside an instance. Layers on
+  `currentColor` keep the color the import chose for the frame.
 - Write the SVG from the layer data instead of running Figma's SVG export on a copy of the frame. Geometry comes from
   `fillGeometry` and `strokeGeometry`, paints, effects, masks, blend modes and keyframe tracks are read from the layers.
   The export no longer clones the frame, swaps instances or flattens boolean layers, and nothing that Figma's export
