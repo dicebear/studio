@@ -1,5 +1,5 @@
 /**
- * The square frame the Style tools work on: the nearest frame around a single
+ * The square frame the Build tab works on: the nearest frame around a single
  * selected layer, when that frame is square. Null when the selection is
  * anything else.
  */

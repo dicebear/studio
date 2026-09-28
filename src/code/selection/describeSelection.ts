@@ -31,7 +31,7 @@ export function unionBounds(nodes: readonly SceneNode[]): SelectionInfo['bounds'
 /**
  * What the window needs to know about the current selection. Each tab gets
  * the part it reads, so the walks over the selection only run for the tab
- * that is open. The Style tab reads the frame on its own.
+ * that is open. The Build tab reads the frame on its own.
  */
 export function describeSelection(mode: Mode): SelectionInfo {
   const selection = figma.currentPage.selection;

@@ -4,7 +4,7 @@ import { useFileInput } from '@/hooks/useFileInput';
 import { useAppStore } from '@/store';
 import { importDefinitionFile } from './lib/importFile';
 
-/** Which frame the Style tools work on, and the way to import a definition. */
+/** Which frame the Build tab works on, and the way to import a definition. */
 export function StyleTopBar() {
   const status = useAppStore((state) => state.style.status);
   const importBlocked = useAppStore((state) => state.style.importBlocked);

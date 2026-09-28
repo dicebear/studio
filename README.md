@@ -26,7 +26,7 @@ Definitions you opened stay cached in Figma's plugin storage, so they render off
 ## Using the plugin
 
 The [DiceBear Studio](https://www.dicebear.com/integrations/figma/) page in the DiceBear docs is the overview: it covers
-the Generate and Inspect tabs and points to the two guides for the Style tab.
+the Generate and Inspect tabs and points to the two guides for the Build tab.
 
 The first guide covers how to set up the frame, name your components and color groups, and run the export:
 [Create an avatar style with Figma](https://www.dicebear.com/create-styles/with-figma/).

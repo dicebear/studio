@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BookOpen, Code, Info, PenTool, Sparkles } from 'lucide-react';
+import { Blocks, BookOpen, Code, Info, Sparkles } from 'lucide-react';
 import type { Mode } from '@shared/messages';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
@@ -9,7 +9,7 @@ import { AboutDialog } from './AboutDialog';
 const ITEMS: { mode: Mode; label: string; icon: typeof Sparkles }[] = [
   { mode: 'generate', label: 'Generate', icon: Sparkles },
   { mode: 'inspect', label: 'Inspect', icon: Code },
-  { mode: 'style', label: 'Style', icon: PenTool },
+  { mode: 'style', label: 'Build', icon: Blocks },
 ];
 
 const RAIL_ACTION =
