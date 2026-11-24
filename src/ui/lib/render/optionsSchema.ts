@@ -34,6 +34,7 @@ const HIDDEN = new Set([
   'animation',
   'animationSpeed',
   'animationDelay',
+  'animationRespectReducedMotion',
   'fontFamily',
   'flip',
   'scale',

@@ -50,6 +50,23 @@ describe('groupOptions', () => {
     expect(groups.find((g) => g.id === 'colors')!.fields[1].palette).toEqual(['ffdbac', '8d5524']);
   });
 
+  it('leaves out the animation options, which do nothing on a still image', () => {
+    const animated = structuredClone(definition);
+
+    (animated.components.face.variants.round.elements[0] as Record<string, unknown>).animations = [
+      {
+        name: 'spin',
+        duration: 1,
+        tracks: { rotate: { keyframes: [{ at: 0, value: 0 }, { at: 100, value: 360 }] } },
+      },
+    ];
+
+    const entry = registerStyle({ kind: 'library', id: 'animated', title: 'Animated' }, animated);
+    const names = groupOptions(entry).flatMap((group) => group.fields.map((f) => f.name));
+
+    expect(names.filter((name) => name.startsWith('animation'))).toEqual([]);
+  });
+
   it('humanizes option names', () => {
     expect(humanize('hairAccessoriesColor')).toBe('Hair accessories color');
     expect(humanize('big-ears')).toBe('Big ears');
