@@ -4,8 +4,8 @@
  * MIT and BSD licenses ask for the notice to travel with every copy.
  *
  * Writes src/ui/generated/third-party-notices.json from the production
- * dependency tree. Runs before every build and can be run on its own with
- * `npm run notices`.
+ * dependency tree. Runs after every install and before every build, and can
+ * be run on its own with `npm run notices`. The file is not committed.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';

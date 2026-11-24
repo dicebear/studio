@@ -16,7 +16,8 @@
     "analyze": "vite build --mode analyze",
     "type-check": "tsc -b",
     "test": "vitest run",
-    "notices": "node scripts/third-party-notices.mjs"
+    "notices": "node scripts/third-party-notices.mjs",
+    "postinstall": "npm run notices"
   },
   "dependencies": {
     "@dicebear/core": "^11.0.0-rc.1",

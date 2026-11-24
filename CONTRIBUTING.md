@@ -65,7 +65,7 @@ src/
 └── ui/          # React app shown in the plugin window
     ├── components/   # Shared components, `ui/` holds the shadcn/ui sources
     ├── features/     # One folder per tab: generate, inspect, style
-    ├── generated/    # Third-party license notices, written by `npm run notices`
+    ├── generated/    # Third-party license notices, written by `npm run notices` after every install (not committed)
     ├── lib/          # Bridge, API client, catalog cache, rendering
     └── store/        # zustand stores
 public/manifest.json  # plugin manifest
