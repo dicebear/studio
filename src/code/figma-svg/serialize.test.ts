@@ -142,7 +142,7 @@ describe('serializeTree', () => {
         '<g mask="url(#mask0)">' +
         '<path d="M-1 -1H11V11H-1ZM1 1H9V9H1Z" fill="#ffffff" fill-rule="evenodd" clip-rule="evenodd"/>' +
         '</g>' +
-        '<defs><mask id="mask0">' +
+        '<defs><mask id="mask0" maskUnits="userSpaceOnUse" x="-4" y="-4" width="18" height="18">' +
         '<rect x="-4" y="-4" width="18" height="18" fill="#ffffff"/><path d="M0 0H10V10H0Z" fill="#000000"/>' +
         '</mask></defs>',
     );
@@ -199,7 +199,32 @@ describe('serializeTree', () => {
     expect(await svg(container('FRAME', [below, mask, above]))).toBe(
       '<rect width="10" height="10" fill="#00ff00"/>' +
         '<g mask="url(#mask0)"><rect width="10" height="10" fill="#0000ff"/></g>' +
-        '<defs><mask id="mask0" style="mask-type:alpha"><circle cx="5" cy="5" r="5" fill="#ffffff"/></mask></defs>',
+        '<defs><mask id="mask0" maskUnits="userSpaceOnUse" x="0" y="0" width="10" height="10" style="mask-type:alpha"><circle cx="5" cy="5" r="5" fill="#ffffff"/></mask></defs>',
+    );
+  });
+
+  it('gives a mask the region of its own box, so a wide stroke under it keeps its edge', async () => {
+    // Without a region an SVG mask ends 10% past the geometry it masks, and a
+    // stroke is not part of that geometry: a collar band along the bottom of
+    // its mask lost the lower half of its width.
+    const mask = shape('RECTANGLE', {
+      isMask: true,
+      maskType: 'ALPHA',
+      width: 20,
+      height: 30,
+      fills: [solid(1, 1, 1)],
+    });
+    const band = shape('RECTANGLE', {
+      width: 20,
+      height: 2,
+      relativeTransform: translate(0, 28),
+      fills: [solid(1, 0, 0)],
+      strokes: [solid(1, 0, 0)],
+      strokeWeight: 4,
+    });
+
+    expect(await svg(container('FRAME', [mask, band]))).toContain(
+      '<mask id="mask0" maskUnits="userSpaceOnUse" x="0" y="0" width="20" height="30" style="mask-type:alpha">',
     );
   });
 
@@ -342,7 +367,7 @@ describe('serializeTree', () => {
       '<use href="#shape0" fill="#000000"/>' +
         '<g mask="url(#mask0)"><use href="#shape0" fill="none" stroke="#ffffff" stroke-width="2"/></g>' +
         '<defs><path d="M0 0H10V10H0Z" id="shape0"/>' +
-        '<mask id="mask0"><rect x="-4" y="-4" width="18" height="18" fill="#ffffff"/><use href="#shape0" fill="#000000"/></mask></defs>',
+        '<mask id="mask0" maskUnits="userSpaceOnUse" x="-4" y="-4" width="18" height="18"><rect x="-4" y="-4" width="18" height="18" fill="#ffffff"/><use href="#shape0" fill="#000000"/></mask></defs>',
     );
   });
 
@@ -373,7 +398,7 @@ describe('serializeTree', () => {
 
     expect(await svg(container('FRAME', [groupMask, above]))).toBe(
       '<g mask="url(#mask0)"><rect width="10" height="10" fill="#0000ff"/></g>' +
-        '<defs><mask id="mask0" style="mask-type:alpha"><rect width="10" height="10" fill="#ffffff"/></mask></defs>',
+        '<defs><mask id="mask0" maskUnits="userSpaceOnUse" x="0" y="0" width="10" height="10" style="mask-type:alpha"><rect width="10" height="10" fill="#ffffff"/></mask></defs>',
     );
 
     const emptyMask = shape('RECTANGLE', { isMask: true, maskType: 'ALPHA', name: 'empty' });
@@ -611,7 +636,7 @@ describe('serializeTree', () => {
         '<defs><filter id="filter0" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" x="-3" y="-3" width="16" height="16">' +
         '<feFlood flood-opacity="0" result="r0"/><feBlend mode="normal" in="SourceGraphic" in2="r0" result="r1"/>' +
         '<feGaussianBlur in="r1" stdDeviation="1" result="r2"/></filter>' +
-        '<mask id="mask0" style="mask-type:alpha"><g filter="url(#filter0)" opacity="0.5"><circle cx="5" cy="5" r="5" fill="#ff0000"/></g></mask></defs>',
+        '<mask id="mask0" maskUnits="userSpaceOnUse" x="-3" y="-3" width="16" height="16" style="mask-type:alpha"><g filter="url(#filter0)" opacity="0.5"><circle cx="5" cy="5" r="5" fill="#ff0000"/></g></mask></defs>',
     );
     expect(warnings).toEqual([]);
 
@@ -620,7 +645,7 @@ describe('serializeTree', () => {
     // Figma thins a vector mask by the layer opacity as well, its own export
     // writes the white outline with the opacity on it.
     expect(await svg(container('FRAME', [outline, above]), { warn: (m) => warnings.push(m) })).toContain(
-      '<mask id="mask0" style="mask-type:alpha"><circle cx="5" cy="5" r="5" fill="#ffffff" opacity="0.5"/></mask>',
+      '<mask id="mask0" maskUnits="userSpaceOnUse" x="0" y="0" width="10" height="10" style="mask-type:alpha"><circle cx="5" cy="5" r="5" fill="#ffffff" opacity="0.5"/></mask>',
     );
     expect(warnings).toEqual([
       'The mask "soft" has effects, which a vector mask cannot carry. It masks by its outline.',
@@ -633,7 +658,7 @@ describe('serializeTree', () => {
     const above = shape('RECTANGLE', { fills: [solid(0, 0, 1)] });
 
     expect(await svg(container('FRAME', [mask, above]))).toContain(
-      '<mask id="mask0" style="mask-type:alpha"><path d="M0 0H10V10H0Z" fill="#ffffff" opacity="0.9"/></mask>',
+      '<mask id="mask0" maskUnits="userSpaceOnUse" x="0" y="0" width="10" height="10" style="mask-type:alpha"><path d="M0 0H10V10H0Z" fill="#ffffff" opacity="0.9"/></mask>',
     );
   });
 

@@ -360,16 +360,11 @@ function alignOutlinedStroke(
   // black. The white covers the stroke's reach, with the miter joins in mind.
   const id = ctx.nextId('mask');
   const margin = strokeWeightOf(ctx, node) * 4;
+  const reach = { x: -margin, y: -margin, width: node.width + 2 * margin, height: node.height + 2 * margin };
 
   ctx.defs.push(
-    element('mask', { id }, [
-      element('rect', {
-        x: formatNumber(-margin),
-        y: formatNumber(-margin),
-        width: formatNumber(node.width + 2 * margin),
-        height: formatNumber(node.height + 2 * margin),
-        fill: '#ffffff',
-      }),
+    element('mask', { id, ...maskRegion(reach) }, [
+      element('rect', { ...boxAttributes(reach), fill: '#ffffff' }),
       ...outline.map((path) => pathElement(path, { fill: '#000000' })),
     ]),
   );
@@ -495,16 +490,11 @@ function alignedStrokeElements(
   // black. The white covers the stroke's reach, with the miter joins in mind.
   const maskId = ctx.nextId('mask');
   const margin = strokeWeightOf(ctx, node) * 4;
+  const reach = { x: -margin, y: -margin, width: node.width + 2 * margin, height: node.height + 2 * margin };
 
   ctx.defs.push(
-    element('mask', { id: maskId }, [
-      element('rect', {
-        x: formatNumber(-margin),
-        y: formatNumber(-margin),
-        width: formatNumber(node.width + 2 * margin),
-        height: formatNumber(node.height + 2 * margin),
-        fill: '#ffffff',
-      }),
+    element('mask', { id: maskId, ...maskRegion(reach) }, [
+      element('rect', { ...boxAttributes(reach), fill: '#ffffff' }),
       reference({ fill: '#000000' }),
     ]),
   );
@@ -852,6 +842,31 @@ function unionBox(boxes: FilterBox[]): FilterBox {
 }
 
 /**
+ * The attributes of a mask that shows everything inside a box, written in
+ * the coordinates of the elements it masks. Without them a mask reaches only
+ * 10% past the geometry of what it masks, and the stroke is not part of
+ * that geometry: a wide stroke near the edge got cut off, and a line at zero
+ * height vanished.
+ */
+function maskRegion(box: FilterBox): Record<string, string> {
+  return { maskUnits: 'userSpaceOnUse', ...boxAttributes(box) };
+}
+
+/** Whether an element holds content written out verbatim, which has no box to measure. */
+function hasVerbatim(node: INode): boolean {
+  return node.type === 'text' || node.children.some(hasVerbatim);
+}
+
+function boxAttributes(box: FilterBox): Record<string, string> {
+  return {
+    x: formatNumber(box.x),
+    y: formatNumber(box.y),
+    width: formatNumber(box.width),
+    height: formatNumber(box.height),
+  };
+}
+
+/**
  * The rectangle a layer paints, in the coordinates its elements are written
  * in. A shape is its box plus the stroke around it. A container is its own
  * box joined with the boxes of its visible children, each grown by the
@@ -985,8 +1000,20 @@ async function serializePlan(ctx: Context, plan: MaskPlanItem<SceneNode>[], mode
       continue;
     }
 
+    // The region is the mask's own painted box, mapped into the coordinates
+    // the masked layers are written in: nothing outside it can show anyway.
+    // A vector mask leaves its effects out, so they do not widen it. Content
+    // written out verbatim, a hook's placeholder for instance, cannot be
+    // measured, and such a mask keeps the default region.
     const id = ctx.nextId('mask');
     const attributes: Record<string, string> = { id };
+
+    if (!content.some(hasVerbatim)) {
+      const matrix = item.mask.type === 'GROUP' ? IDENTITY : fromTransform(item.mask.relativeTransform);
+      const effects = maskType !== 'VECTOR' && 'effects' in item.mask ? item.mask.effects : [];
+
+      Object.assign(attributes, maskRegion(mapBox(matrix, growBox(paintedBox(ctx, item.mask), effectReach(effects)))));
+    }
 
     // A vector mask uses its outline, an alpha mask its transparency. Both are
     // alpha masks to SVG, a luminance mask is the SVG default.

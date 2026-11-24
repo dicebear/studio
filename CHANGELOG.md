@@ -90,6 +90,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   come out about a quarter smaller, and an export now passes the check of `dicebear optimize`, which has run this step
   all along.
 
+### Fixed
+
+- A mask in the export covers the whole box of its mask layer. Without a region an SVG mask ends 10% past the geometry
+  it masks, and a stroke is not part of that geometry: the collar of the Cats lost the lower edge of its band, and a
+  line at zero height disappeared under its mask.
+- The Generate tab no longer offers the reduced-motion option of an animated style. The plugin places still images, on
+  which it does nothing.
+
 ## [39] - 2026-08-27
 
 ### Changed
