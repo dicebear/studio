@@ -47,6 +47,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- Reference `@dicebear/schema@3.0.0` in exported definition files (was `2.0.1`). Version 3 belongs to DiceBear 11; for
+  definitions it only adds the stricter rules of 2.0.2 on where `animations` may sit.
 - The window is a React app on shadcn/ui and Tailwind CSS instead of Vue and PrimeVue. PrimeVue 5 requires a license
   key, which a plugin that is handed to everyone cannot carry.
 - The sandbox no longer bundles `@dicebear/core`. The window computes what the renderer picks for the thumbnail seeds
